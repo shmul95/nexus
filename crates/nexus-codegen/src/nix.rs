@@ -1,23 +1,37 @@
 use minijinja::{context, Environment};
-use nexus_core::Network;
+use nexus_core::{Network, Transport};
 
 use crate::{CodegenError, GeneratedFile};
 
 // ── templates (embedded as const &str) ────────────────────────────────────────
 
-const NODE_NIX_TMPL: &str = r#"{ pkgs ? import <nixpkgs> {} }:
+const NODE_NIX_TMPL: &str = r#"{ pkgs ? import <nixpkgs> {}, src ? ./.. }:
 
 pkgs.stdenv.mkDerivation {
   pname = "nexus-{{ node_name }}";
   version = "0.1.0";
 
-  src = ../.;
+  inherit src;
+{% if has_grpc or has_http %}
+  nativeBuildInputs = [ pkgs.pkg-config ];
+{% endif %}
+{% if has_grpc or has_http %}
+  buildInputs = [
+    {% if has_grpc %}pkgs.grpc{% endif %}
+    {% if has_http %}pkgs.curl{% endif %}
+  ];
+{% endif %}
 
   buildPhase = ''
     gcc -shared -fPIC \
       -I include \
-      {% for contract_name in contract_names %}src/nexus_{{ contract_name }}.c {% endfor %}\
-      -o libnexus-{{ node_name }}.so
+{% if has_grpc %}      $(pkg-config --cflags grpc) \
+{% endif %}{% if has_http %}      $(pkg-config --cflags libcurl) \
+{% endif %}      {% for contract_name in contract_names %}src/nexus_{{ contract_name }}.c {% endfor %}\
+{% if has_grpc %}      $(pkg-config --libs grpc) \
+{% endif %}{% if has_http %}      $(pkg-config --libs libcurl) \
+{% endif %}{% if has_iceoryx %}      -lrt \
+{% endif %}      -o libnexus-{{ node_name }}.so
   '';
 
   installPhase = ''
@@ -36,10 +50,10 @@ PKGEOF
 }
 "#;
 
-const NEXUS_NIX_TMPL: &str = r#"{ pkgs ? import <nixpkgs> {} }:
+const NEXUS_NIX_TMPL: &str = r#"{ pkgs ? import <nixpkgs> {}, src ? null }:
 
 {
-  {% for node_name in node_names %}{{ node_name }} = import ./nix/{{ node_name }}.nix { inherit pkgs; };
+  {% for node_name in node_names %}{{ node_name }} = import ./nix/{{ node_name }}.nix { inherit pkgs src; };
   {% endfor %}
 }
 "#;
@@ -58,7 +72,7 @@ pub fn generate_nix(network: &Network) -> Result<Vec<GeneratedFile>, CodegenErro
 
     // Per-node derivations
     for (node_idx, node) in network.nodes.iter().enumerate() {
-        // Collect unique contract names for this node (sorted for determinism)
+        // Collect unique contract indices for this node (sorted for determinism)
         let mut contract_indices: Vec<usize> = network
             .edges
             .iter()
@@ -73,10 +87,27 @@ pub fn generate_nix(network: &Network) -> Result<Vec<GeneratedFile>, CodegenErro
             .map(|&idx| network.contracts[idx].name.as_str())
             .collect();
 
+        // Compute per-node transport flags from the contracts on its edges
+        let mut has_grpc = false;
+        let mut has_http = false;
+        let mut has_iceoryx = false;
+
+        for &idx in &contract_indices {
+            match network.contracts[idx].transport {
+                Transport::Grpc => has_grpc = true,
+                Transport::Http => has_http = true,
+                Transport::Iceoryx => has_iceoryx = true,
+                _ => {}
+            }
+        }
+
         let tmpl = env.get_template("node_nix")?;
         let rendered = tmpl.render(context! {
             node_name => node.name,
             contract_names => contract_names,
+            has_grpc => has_grpc,
+            has_http => has_http,
+            has_iceoryx => has_iceoryx,
         })?;
 
         files.push(GeneratedFile {
@@ -190,6 +221,83 @@ mod tests {
         }
     }
 
+    /// Build a 2-node network with mixed transports:
+    ///   sender --grpc_data--> receiver   (gRPC)
+    ///   sender --http_data--> receiver   (HTTP)
+    ///   sender --shm_data-->  receiver   (Iceoryx)
+    fn mixed_transport_network() -> Network {
+        let nodes = vec![
+            Node {
+                name: "sender".to_string(),
+            },
+            Node {
+                name: "receiver".to_string(),
+            },
+        ];
+        let contracts = vec![
+            Contract {
+                name: "grpc_data".to_string(),
+                transport: Transport::Grpc,
+                schema: SchemaIdx(0),
+            },
+            Contract {
+                name: "http_data".to_string(),
+                transport: Transport::Http,
+                schema: SchemaIdx(0),
+            },
+            Contract {
+                name: "shm_data".to_string(),
+                transport: Transport::Iceoryx,
+                schema: SchemaIdx(0),
+            },
+        ];
+        let schemas = vec![Schema {
+            name: "payload".to_string(),
+            structs: vec![StructDef {
+                name: "payload".to_string(),
+                fields: vec![],
+            }],
+        }];
+        let edges = vec![
+            Edge {
+                from_node: NodeIdx(0),
+                to_node: NodeIdx(1),
+                contract: ContractIdx(0),
+                origin: EdgeOrigin::Send,
+            },
+            Edge {
+                from_node: NodeIdx(0),
+                to_node: NodeIdx(1),
+                contract: ContractIdx(1),
+                origin: EdgeOrigin::Send,
+            },
+            Edge {
+                from_node: NodeIdx(0),
+                to_node: NodeIdx(1),
+                contract: ContractIdx(2),
+                origin: EdgeOrigin::Send,
+            },
+        ];
+
+        let mut node_index = HashMap::new();
+        node_index.insert("sender".to_string(), NodeIdx(0));
+        node_index.insert("receiver".to_string(), NodeIdx(1));
+
+        let mut contract_index = HashMap::new();
+        contract_index.insert("grpc_data".to_string(), ContractIdx(0));
+        contract_index.insert("http_data".to_string(), ContractIdx(1));
+        contract_index.insert("shm_data".to_string(), ContractIdx(2));
+
+        Network {
+            nodes,
+            contracts,
+            schemas,
+            edges,
+            node_index,
+            contract_index,
+        }
+    }
+
     #[test]
     fn test_nix_generation() {
         let network = three_node_network();
@@ -279,5 +387,98 @@ mod tests {
             nexus_nix.contains("import ./nix/backend.nix"),
             "nexus.nix: import backend missing"
         );
+
+        // UnixSocket-only nodes must NOT have transport deps
+        assert!(
+            !backend_nix.contains("pkg-config"),
+            "backend: unexpected pkg-config (unix socket only)"
+        );
+        assert!(
+            !backend_nix.contains("pkgs.grpc"),
+            "backend: unexpected pkgs.grpc"
+        );
+        assert!(
+            !backend_nix.contains("pkgs.curl"),
+            "backend: unexpected pkgs.curl"
+        );
+        assert!(
+            !backend_nix.contains("-lrt"),
+            "backend: unexpected -lrt"
+        );
+
+        // All nodes use `inherit src;` instead of `src = ../.;`
+        assert!(
+            backend_nix.contains("inherit src;"),
+            "backend: missing inherit src"
+        );
+        assert!(
+            frontend_nix.contains("inherit src;"),
+            "frontend: missing inherit src"
+        );
+        assert!(
+            engine_nix.contains("inherit src;"),
+            "engine: missing inherit src"
+        );
+    }
+
+    #[test]
+    fn test_nix_generation_mixed_transports() {
+        let network = mixed_transport_network();
+        let files = generate_nix(&network).unwrap();
+
+        // Expect 3 files: 2 node .nix + nexus.nix
+        assert_eq!(files.len(), 3, "expected 3 nix files");
+
+        let file_map: HashMap<&str, &str> = files
+            .iter()
+            .map(|f| (f.path.as_str(), f.content.as_str()))
+            .collect();
+
+        let sender_nix = *file_map.get("nix/sender.nix").expect("missing sender.nix");
+        let receiver_nix = *file_map.get("nix/receiver.nix").expect("missing receiver.nix");
+
+        // Both nodes touch all three contracts, so both should have all transport deps
+        for (label, nix) in [("sender", sender_nix), ("receiver", receiver_nix)] {
+            assert!(
+                nix.contains("inherit src;"),
+                "{label}: missing inherit src"
+            );
+            assert!(
+                nix.contains("pkgs.pkg-config"),
+                "{label}: missing pkg-config"
+            );
+            assert!(nix.contains("pkgs.grpc"), "{label}: missing pkgs.grpc");
+            assert!(nix.contains("pkgs.curl"), "{label}: missing pkgs.curl");
+            assert!(
+                nix.contains("$(pkg-config --cflags grpc)"),
+                "{label}: missing grpc cflags"
+            );
+            assert!(
+                nix.contains("$(pkg-config --libs grpc)"),
+                "{label}: missing grpc libs"
+            );
+            assert!(
+                nix.contains("$(pkg-config --cflags libcurl)"),
+                "{label}: missing libcurl cflags"
+            );
+            assert!(
+                nix.contains("$(pkg-config --libs libcurl)"),
+                "{label}: missing libcurl libs"
+            );
+            assert!(nix.contains("-lrt"), "{label}: missing -lrt");
+            // Contract source files
+            assert!(
+                nix.contains("nexus_grpc_data.c"),
+                "{label}: missing grpc_data.c"
+            );
+            assert!(
+                nix.contains("nexus_http_data.c"),
+                "{label}: missing http_data.c"
+            );
+            assert!(
+                nix.contains("nexus_shm_data.c"),
+                "{label}: missing shm_data.c"
+            );
+        }
     }
 }
