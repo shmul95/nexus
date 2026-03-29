@@ -1,0 +1,10 @@
+[package]
+name = "nexus-codegen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+nexus-core = { workspace = true }
+minijinja = { workspace = true }
+thiserror = { workspace = true }
