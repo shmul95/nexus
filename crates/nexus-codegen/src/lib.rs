@@ -1,9 +1,13 @@
 // nexus-codegen: C header/impl, TypeScript client, and Nix derivation generation via minijinja templates
 
 pub mod error;
+pub mod grpc_server_runtime;
 pub mod header;
+pub mod http_server_runtime;
 pub mod impl_grpc;
+pub mod impl_grpc_server;
 pub mod impl_http;
+pub mod impl_http_server;
 pub mod impl_iceoryx;
 pub mod impl_unix_socket;
 pub mod nix;
@@ -33,29 +37,54 @@ pub struct GeneratedFile {
 pub fn generate(network: &Network) -> Result<GeneratedOutput, CodegenError> {
     let mut files = Vec::new();
 
-    // Per-contract C headers and implementations
+    // Per-contract C headers
     for contract in &network.contracts {
         let schema = &network.schemas[contract.schema.0];
-
         files.push(header::generate_header(contract, schema)?);
+    }
+
+    // Per-contract C implementations — generate BOTH client and server variants
+    // for gRPC/HTTP transports. The Nix derivation selects the right file per node.
+    let mut has_any_grpc_server = false;
+    let mut has_any_http_server = false;
+
+    for contract in &network.contracts {
+        let schema = &network.schemas[contract.schema.0];
 
         match &contract.transport {
             Transport::UnixSocket => {
                 files.push(impl_unix_socket::generate_impl(contract, schema)?);
             }
             Transport::Grpc => {
+                // Client impl (for receiver nodes)
                 files.push(impl_grpc::generate_impl(contract, schema)?);
+                // Server impl (for sender nodes)
+                files.push(impl_grpc_server::generate_impl(contract, schema)?);
+                has_any_grpc_server = true;
             }
             Transport::Http => {
+                // Client impl (for receiver nodes)
                 files.push(impl_http::generate_impl(contract, schema)?);
+                // Server impl (for sender nodes)
+                files.push(impl_http_server::generate_impl(contract, schema)?);
+                has_any_http_server = true;
             }
             Transport::Iceoryx => {
+                // Symmetric — same impl for both sender and receiver
                 files.push(impl_iceoryx::generate_impl(contract, schema)?);
             }
             other => {
                 return Err(CodegenError::UnsupportedTransport(format!("{:?}", other)));
             }
         }
+    }
+
+    // Shared runtime files (one per transport type, if any server contracts exist)
+    if has_any_grpc_server {
+        files.push(grpc_server_runtime::generate_runtime()?);
+    }
+    if has_any_http_server {
+        files.push(http_server_runtime::generate_runtime()?);
     }
 
     // Per-node umbrella headers
