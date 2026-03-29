@@ -1,0 +1,41 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/nexus-core",
+  "crates/nexus-validate",
+  "crates/nexus-codegen",
+  "crates/nexus-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+nexus-core = { path = "crates/nexus-core" }
+nexus-validate = { path = "crates/nexus-validate" }
+nexus-codegen = { path = "crates/nexus-codegen" }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+thiserror = "2"
+clap = { version = "4", features = ["derive"] }
+pest = "2"
+pest_derive = "2"
+minijinja = "2"
+
+[package]
+name = "nexus-workspace-tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dev-dependencies]
+nexus-core = { path = "crates/nexus-core" }
+nexus-validate = { path = "crates/nexus-validate" }
+nexus-codegen = { path = "crates/nexus-codegen" }
+
+[[test]]
+name = "e2e"
+path = "tests/e2e.rs"

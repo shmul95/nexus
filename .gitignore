@@ -1,0 +1,5 @@
+/target
+/result
+*.swp
+.direnv/
+nexus-gen-out/
