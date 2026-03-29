@@ -22,7 +22,7 @@ int nexus_{{ contract_name }}_init(void) {
     const char* name = getenv("NEXUS_{{ contract_name_upper }}_SHM");
     if (!name) name = "/nexus_{{ contract_name }}";
 
-    _nexus_{{ contract_name }}_fd = shm_open(name, O_CREAT | O_RDWR, 0666);
+    _nexus_{{ contract_name }}_fd = shm_open(name, O_CREAT | O_RDWR, 0600);
     if (_nexus_{{ contract_name }}_fd < 0) return NEXUS_ERR_INIT;
 
     if (ftruncate(_nexus_{{ contract_name }}_fd, sizeof(Nexus{{ struct_name }})) < 0) {
@@ -184,8 +184,12 @@ mod tests {
             "missing default shm name"
         );
 
-        // shm_open usage
+        // shm_open usage (must use restrictive 0600 mode, not 0666)
         assert!(c.contains("shm_open("), "missing shm_open call");
+        assert!(
+            c.contains("O_CREAT | O_RDWR, 0600"),
+            "shm_open must use mode 0600"
+        );
         assert!(c.contains("ftruncate("), "missing ftruncate call");
         assert!(c.contains("mmap("), "missing mmap call");
         assert!(c.contains("munmap("), "missing munmap call");
