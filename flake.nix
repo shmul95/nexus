@@ -29,6 +29,9 @@
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
 
+            # Build only the CLI crate (the workspace root is a test-only package)
+            cargoBuildFlags = [ "-p" "nexus-cli" ];
+
             meta = {
               description = "nexus-gen IPC topology code generator";
               mainProgram = "nexus-gen";
