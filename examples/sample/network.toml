@@ -1,0 +1,26 @@
+[[nodes]]
+name = "backend"
+receives = [{ contract = "game_info", from = "game_engine" }]
+sends    = [{ contract = "display",   to   = "frontend"    }]
+
+[[nodes]]
+name = "game_engine"
+sends = [{ contract = "game_info", to = "backend" }]
+
+[[nodes]]
+name = "frontend"
+receives = [{ contract = "display", from = "backend" }]
+
+[[contracts]]
+name      = "game_info"
+transport = "unix_socket"
+schema    = "schemas/game_info.nxs"
+
+[[contracts]]
+name      = "display"
+transport = "unix_socket"
+fields = [
+  { name = "frame_id", type = "u32" },
+  { name = "width",    type = "u32" },
+  { name = "height",   type = "u32" },
+]

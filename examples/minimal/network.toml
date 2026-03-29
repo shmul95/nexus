@@ -1,0 +1,15 @@
+[[nodes]]
+name = "producer"
+sends = [{ contract = "data", to = "consumer" }]
+
+[[nodes]]
+name = "consumer"
+receives = [{ contract = "data", from = "producer" }]
+
+[[contracts]]
+name = "data"
+transport = "unix_socket"
+fields = [
+  { name = "value", type = "f64" },
+  { name = "seq",   type = "u64" },
+]
