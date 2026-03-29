@@ -12,13 +12,14 @@ pkgs.stdenv.mkDerivation {
   version = "0.1.0";
 
   inherit src;
-{% if has_grpc or has_http %}
+{% if has_grpc or has_http or has_http_server %}
   nativeBuildInputs = [ pkgs.pkg-config ];
 {% endif %}
-{% if has_grpc or has_http %}
+{% if has_grpc or has_http or has_http_server %}
   buildInputs = [
     {% if has_grpc %}pkgs.grpc{% endif %}
     {% if has_http %}pkgs.curl{% endif %}
+    {% if has_http_server %}pkgs.libmicrohttpd{% endif %}
   ];
 {% endif %}
 
@@ -27,17 +28,23 @@ pkgs.stdenv.mkDerivation {
       -I include \
 {% if has_grpc %}      $(pkg-config --cflags grpc) \
 {% endif %}{% if has_http %}      $(pkg-config --cflags libcurl) \
-{% endif %}      {% for contract_name in contract_names %}src/nexus_{{ contract_name }}.c {% endfor %}\
-{% if has_grpc %}      $(pkg-config --libs grpc) \
+{% endif %}{% if has_http_server %}      $(pkg-config --cflags libmicrohttpd) \
+{% endif %}      {% for c in server_contracts %}src/nexus_{{ c }}_server.c {% endfor %}\
+      {% for c in client_contracts %}src/nexus_{{ c }}.c {% endfor %}\
+{% if has_grpc_server %}      src/nexus_grpc_runtime.c \
+{% endif %}{% if has_http_server %}      src/nexus_http_runtime.c \
+{% endif %}{% if has_grpc %}      $(pkg-config --libs grpc) \
 {% endif %}{% if has_http %}      $(pkg-config --libs libcurl) \
+{% endif %}{% if has_http_server %}      $(pkg-config --libs libmicrohttpd) \
 {% endif %}{% if has_iceoryx %}      -lrt \
+{% endif %}{% if has_grpc_server or has_http_server %}      -lpthread \
 {% endif %}      -o libnexus-{{ node_name }}.so
   '';
 
   installPhase = ''
     mkdir -p $out/lib $out/include $out/lib/pkgconfig
     cp libnexus-{{ node_name }}.so $out/lib/
-    {% for contract_name in contract_names %}cp include/nexus_{{ contract_name }}.h $out/include/
+    {% for contract_name in all_contract_names %}cp include/nexus_{{ contract_name }}.h $out/include/
     {% endfor %}cp include/nexus_{{ node_name }}.h $out/include/
 
     cat > $out/lib/pkgconfig/nexus-{{ node_name }}.pc << PKGEOF
@@ -72,42 +79,83 @@ pub fn generate_nix(network: &Network) -> Result<Vec<GeneratedFile>, CodegenErro
 
     // Per-node derivations
     for (node_idx, node) in network.nodes.iter().enumerate() {
-        // Collect unique contract indices for this node (sorted for determinism)
-        let mut contract_indices: Vec<usize> = network
-            .edges
-            .iter()
-            .filter(|e| e.from_node.0 == node_idx || e.to_node.0 == node_idx)
-            .map(|e| e.contract.0)
-            .collect();
-        contract_indices.sort();
-        contract_indices.dedup();
+        // Collect edges for this node, split into sender (from) and receiver (to) roles
+        let mut server_contracts: Vec<&str> = Vec::new(); // sender on gRPC/HTTP → _server.c
+        let mut client_contracts: Vec<&str> = Vec::new(); // receiver on gRPC/HTTP → .c, or unix_socket/iceoryx → .c
 
-        let contract_names: Vec<&str> = contract_indices
-            .iter()
-            .map(|&idx| network.contracts[idx].name.as_str())
-            .collect();
-
-        // Compute per-node transport flags from the contracts on its edges
         let mut has_grpc = false;
         let mut has_http = false;
         let mut has_iceoryx = false;
+        let mut has_grpc_server = false;
+        let mut has_http_server = false;
 
-        for &idx in &contract_indices {
-            match network.contracts[idx].transport {
-                Transport::Grpc => has_grpc = true,
-                Transport::Http => has_http = true,
-                Transport::Iceoryx => has_iceoryx = true,
+        let mut seen: std::collections::HashSet<usize> = std::collections::HashSet::new();
+
+        for edge in &network.edges {
+            let contract_idx = edge.contract.0;
+            if !seen.insert(contract_idx) {
+                continue; // deduplicate
+            }
+
+            let is_sender = edge.from_node.0 == node_idx;
+            let is_receiver = edge.to_node.0 == node_idx;
+            if !is_sender && !is_receiver {
+                continue;
+            }
+
+            let contract = &network.contracts[contract_idx];
+            let name = contract.name.as_str();
+
+            match (&contract.transport, is_sender) {
+                (Transport::Grpc, true) => {
+                    server_contracts.push(name);
+                    has_grpc = true;
+                    has_grpc_server = true;
+                }
+                (Transport::Grpc, false) => {
+                    client_contracts.push(name);
+                    has_grpc = true;
+                }
+                (Transport::Http, true) => {
+                    server_contracts.push(name);
+                    has_http_server = true;
+                }
+                (Transport::Http, false) => {
+                    client_contracts.push(name);
+                    has_http = true;
+                }
+                (Transport::Iceoryx, _) => {
+                    client_contracts.push(name); // iceoryx impl is symmetric, use regular .c
+                    has_iceoryx = true;
+                }
+                (Transport::UnixSocket, _) => {
+                    client_contracts.push(name); // unix socket impl is symmetric
+                }
                 _ => {}
             }
         }
 
+        server_contracts.sort();
+        client_contracts.sort();
+
+        // All contract names for header installation
+        let mut all_contract_names: Vec<&str> = Vec::new();
+        all_contract_names.extend(&server_contracts);
+        all_contract_names.extend(&client_contracts);
+        all_contract_names.sort();
+        all_contract_names.dedup();
+
         let tmpl = env.get_template("node_nix")?;
         let rendered = tmpl.render(context! {
             node_name => node.name,
-            contract_names => contract_names,
+            server_contracts => server_contracts,
+            client_contracts => client_contracts,
+            all_contract_names => all_contract_names,
             has_grpc => has_grpc,
             has_http => has_http,
             has_iceoryx => has_iceoryx,
+            has_grpc_server => has_grpc_server,
+            has_http_server => has_http_server,
         })?;
 
         files.push(GeneratedFile {
@@ -437,48 +485,76 @@ mod tests {
         let sender_nix = *file_map.get("nix/sender.nix").expect("missing sender.nix");
         let receiver_nix = *file_map.get("nix/receiver.nix").expect("missing receiver.nix");
 
-        // Both nodes touch all three contracts, so both should have all transport deps
-        for (label, nix) in [("sender", sender_nix), ("receiver", receiver_nix)] {
-            assert!(
-                nix.contains("inherit src;"),
-                "{label}: missing inherit src"
-            );
-            assert!(
-                nix.contains("pkgs.pkg-config"),
-                "{label}: missing pkg-config"
-            );
-            assert!(nix.contains("pkgs.grpc"), "{label}: missing pkgs.grpc");
-            assert!(nix.contains("pkgs.curl"), "{label}: missing pkgs.curl");
-            assert!(
-                nix.contains("$(pkg-config --cflags grpc)"),
-                "{label}: missing grpc cflags"
-            );
-            assert!(
-                nix.contains("$(pkg-config --libs grpc)"),
-                "{label}: missing grpc libs"
-            );
-            assert!(
-                nix.contains("$(pkg-config --cflags libcurl)"),
-                "{label}: missing libcurl cflags"
-            );
-            assert!(
-                nix.contains("$(pkg-config --libs libcurl)"),
-                "{label}: missing libcurl libs"
-            );
-            assert!(nix.contains("-lrt"), "{label}: missing -lrt");
-            // Contract source files
-            assert!(
-                nix.contains("nexus_grpc_data.c"),
-                "{label}: missing grpc_data.c"
-            );
-            assert!(
-                nix.contains("nexus_http_data.c"),
-                "{label}: missing http_data.c"
-            );
-            assert!(
-                nix.contains("nexus_shm_data.c"),
-                "{label}: missing shm_data.c"
-            );
-        }
+        // Sender node: gRPC and HTTP contracts get _server.c files
+        assert!(
+            sender_nix.contains("nexus_grpc_data_server.c"),
+            "sender: missing grpc_data_server.c"
+        );
+        assert!(
+            sender_nix.contains("nexus_http_data_server.c"),
+            "sender: missing http_data_server.c"
+        );
+        assert!(
+            sender_nix.contains("nexus_shm_data.c"),
+            "sender: missing shm_data.c (iceoryx uses regular impl)"
+        );
+        // Sender should have server runtimes
+        assert!(
+            sender_nix.contains("nexus_grpc_runtime.c"),
+            "sender: missing grpc_runtime.c"
+        );
+        assert!(
+            sender_nix.contains("nexus_http_runtime.c"),
+            "sender: missing http_runtime.c"
+        );
+        // Sender server deps
+        assert!(sender_nix.contains("pkgs.grpc"), "sender: missing pkgs.grpc");
+        assert!(
+            sender_nix.contains("pkgs.libmicrohttpd"),
+            "sender: missing pkgs.libmicrohttpd"
+        );
+        assert!(sender_nix.contains("-lpthread"), "sender: missing -lpthread");
+        assert!(sender_nix.contains("-lrt"), "sender: missing -lrt");
+
+        // Receiver node: gRPC and HTTP contracts get regular .c (client) files
+        assert!(
+            receiver_nix.contains("nexus_grpc_data.c"),
+            "receiver: missing grpc_data.c (client)"
+        );
+        assert!(
+            receiver_nix.contains("nexus_http_data.c"),
+            "receiver: missing http_data.c (client)"
+        );
+        assert!(
+            receiver_nix.contains("nexus_shm_data.c"),
+            "receiver: missing shm_data.c"
+        );
+        // Receiver should NOT have server runtimes
+        assert!(
+            !receiver_nix.contains("nexus_grpc_runtime.c"),
+            "receiver: unexpected grpc_runtime.c"
+        );
+        assert!(
+            !receiver_nix.contains("nexus_http_runtime.c"),
+            "receiver: unexpected http_runtime.c"
+        );
+        // Receiver client deps
+        assert!(
+            receiver_nix.contains("pkgs.grpc"),
+            "receiver: missing pkgs.grpc"
+        );
+        assert!(
+            receiver_nix.contains("pkgs.curl"),
+            "receiver: missing pkgs.curl"
+        );
+        // Receiver should NOT have server-only deps
+        assert!(
+            !receiver_nix.contains("pkgs.libmicrohttpd"),
+            "receiver: unexpected pkgs.libmicrohttpd"
+        );
+        assert!(
+            !receiver_nix.contains("-lpthread"),
+            "receiver: unexpected -lpthread"
+        );
     }
 }

@@ -209,10 +209,16 @@ fn e2e_mixed_load_validate_generate() {
     assert!(paths.contains("include/nexus_summary.h"), "missing nexus_summary.h");
     assert!(paths.contains("include/nexus_dashboard.h"), "missing nexus_dashboard.h");
 
-    // Per-contract C implementations
+    // Per-contract C implementations (both client and server variants for gRPC/HTTP)
     assert!(paths.contains("src/nexus_readings.c"), "missing nexus_readings.c (iceoryx)");
-    assert!(paths.contains("src/nexus_summary.c"), "missing nexus_summary.c (grpc)");
-    assert!(paths.contains("src/nexus_dashboard.c"), "missing nexus_dashboard.c (http)");
+    assert!(paths.contains("src/nexus_summary.c"), "missing nexus_summary.c (grpc client)");
+    assert!(paths.contains("src/nexus_summary_server.c"), "missing nexus_summary_server.c (grpc server)");
+    assert!(paths.contains("src/nexus_dashboard.c"), "missing nexus_dashboard.c (http client)");
+    assert!(paths.contains("src/nexus_dashboard_server.c"), "missing nexus_dashboard_server.c (http server)");
+
+    // Runtime files for server nodes
+    assert!(paths.contains("src/nexus_grpc_runtime.c"), "missing nexus_grpc_runtime.c");
+    assert!(paths.contains("src/nexus_http_runtime.c"), "missing nexus_http_runtime.c");
 
     // Per-node umbrella headers
     assert!(paths.contains("include/nexus_sensor.h"), "missing nexus_sensor.h");
@@ -244,9 +250,18 @@ fn e2e_mixed_load_validate_generate() {
     assert!(dashboard_c.content.contains("curl_easy_init"), "http impl should use curl");
 
     // Verify nix derivation has correct transport deps
+    // api_server receives gRPC (client) and sends HTTP (server)
     let api_server_nix = output.files.iter().find(|f| f.path == "nix/api_server.nix").unwrap();
-    assert!(api_server_nix.content.contains("grpc"), "api_server.nix should have grpc dep");
-    assert!(api_server_nix.content.contains("curl"), "api_server.nix should have curl dep");
+    assert!(api_server_nix.content.contains("grpc"), "api_server.nix should have grpc dep (client)");
+    assert!(api_server_nix.content.contains("libmicrohttpd"), "api_server.nix should have libmicrohttpd (server)");
+    assert!(api_server_nix.content.contains("nexus_summary.c"), "api_server.nix should compile summary client");
+    assert!(api_server_nix.content.contains("nexus_dashboard_server.c"), "api_server.nix should compile dashboard server");
+
+    // aggregator sends gRPC (server) and receives iceoryx (client)
+    let aggregator_nix = output.files.iter().find(|f| f.path == "nix/aggregator.nix").unwrap();
+    assert!(aggregator_nix.content.contains("nexus_summary_server.c"), "aggregator.nix should compile summary server");
+    assert!(aggregator_nix.content.contains("nexus_readings.c"), "aggregator.nix should compile readings client");
+    assert!(aggregator_nix.content.contains("nexus_grpc_runtime.c"), "aggregator.nix should include grpc runtime");
 
     let sensor_nix = output.files.iter().find(|f| f.path == "nix/sensor.nix").unwrap();
     assert!(sensor_nix.content.contains("-lrt"), "sensor.nix should have -lrt for iceoryx");
