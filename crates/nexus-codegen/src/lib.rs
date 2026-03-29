@@ -1,9 +1,13 @@
-// nexus-codegen: C header/impl and Nix derivation generation via minijinja templates
+// nexus-codegen: C header/impl, TypeScript client, and Nix derivation generation via minijinja templates
 
 pub mod error;
 pub mod header;
+pub mod impl_grpc;
+pub mod impl_http;
+pub mod impl_iceoryx;
 pub mod impl_unix_socket;
 pub mod nix;
+pub mod typescript;
 
 use std::path::Path;
 
@@ -39,6 +43,15 @@ pub fn generate(network: &Network) -> Result<GeneratedOutput, CodegenError> {
             Transport::UnixSocket => {
                 files.push(impl_unix_socket::generate_impl(contract, schema)?);
             }
+            Transport::Grpc => {
+                files.push(impl_grpc::generate_impl(contract, schema)?);
+            }
+            Transport::Http => {
+                files.push(impl_http::generate_impl(contract, schema)?);
+            }
+            Transport::Iceoryx => {
+                files.push(impl_iceoryx::generate_impl(contract, schema)?);
+            }
             other => {
                 return Err(CodegenError::UnsupportedTransport(format!("{:?}", other)));
             }
@@ -68,6 +81,14 @@ pub fn generate(network: &Network) -> Result<GeneratedOutput, CodegenError> {
 
     // Nix derivation files
     files.extend(nix::generate_nix(network)?);
+
+    // TypeScript clients (only for HTTP transport contracts)
+    for contract in &network.contracts {
+        if contract.transport == Transport::Http {
+            let schema = &network.schemas[contract.schema.0];
+            files.push(typescript::generate_typescript(contract, schema)?);
+        }
+    }
 
     Ok(GeneratedOutput { files })
 }
