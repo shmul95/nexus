@@ -24,7 +24,9 @@ int nexus_{{ contract_name }}_init(void) {
 
     grpc_init();
 
-    _nexus_{{ contract_name }}_channel = grpc_insecure_channel_create(addr, NULL, NULL);
+    grpc_channel_credentials* creds = grpc_insecure_credentials_create();
+    _nexus_{{ contract_name }}_channel = grpc_channel_create(addr, creds, NULL);
+    grpc_channel_credentials_release(creds);
     if (!_nexus_{{ contract_name }}_channel) return NEXUS_ERR_INIT;
 
     return NEXUS_OK;
