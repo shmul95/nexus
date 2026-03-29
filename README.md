@@ -20,10 +20,16 @@ This removes the need to manually wire up IPC code across multiple processes and
 
 ### Build
 
-**With Nix:**
+**With Nix (recommended):**
 ```bash
 nix develop
 cargo build --release
+```
+
+**Using nix build (flake):**
+```bash
+nix build
+# Binary at ./result/bin/nexus-gen
 ```
 
 **Without Nix:**
@@ -31,7 +37,7 @@ cargo build --release
 cargo build --release
 ```
 
-The compiled binary is `nexus-gen` (located at `./target/release/nexus-gen`).
+The compiled binary is `nexus-gen` (located at `./target/release/nexus-gen` or `./result/bin/nexus-gen`).
 
 ### Run
 
@@ -102,7 +108,7 @@ schema    = "schemas/game_info.nxs"
 
 [[contracts]]
 name      = "display"
-transport = "unix_socket"
+transport = "http"
 fields = [
   { name = "frame_id", type = "u32" },
   { name = "width",    type = "u32" },
@@ -112,9 +118,15 @@ fields = [
 
 **Nodes** declare the processes in your system and their send/receive edges.
 
-**Contracts** define message types. A contract can either:
+**Contracts** define message types and their transport. A contract can either:
 - Reference a `.nxs` schema file (`schema = "path/to/file.nxs"`)
 - Inline field definitions (`fields = [...]`)
+
+**Supported transports:**
+- `unix_socket` — Unix domain sockets (local IPC)
+- `grpc` — gRPC using C core API
+- `http` — HTTP via libcurl (generates TypeScript clients for browsers)
+- `iceoryx` — iceoryx shared-memory transport (POSIX)
 
 ### .nxs Schema Format
 
@@ -140,12 +152,17 @@ When you run `build`, nexus-gen produces:
 - Function declarations for send/receive
 
 **C Implementations** (`.c`)
-- IPC transport logic (Unix socket for MVP)
+- IPC transport logic (Unix socket, gRPC, HTTP, iceoryx)
 - Message serialization/deserialization
+
+**TypeScript Clients** (`.ts`)
+- Generated for HTTP contracts only
+- Fetch-based client with type-safe interfaces
 
 **Nix Derivations** (`.nix`)
 - Build specifications for each component
-- Dependency management
+- Transport-aware dependencies (grpc, libcurl, -lrt for iceoryx)
+- Composable src parameter for custom builds
 
 All files are placed in the output directory with a structure matching your node names.
 
@@ -188,6 +205,7 @@ The `examples/` directory contains working configurations:
 
 - **minimal/** — Two nodes exchanging a single message
 - **sample/** — Three nodes with two contracts (game engine, backend, frontend)
+- **mixed/** — Four-node network demonstrating all transports: iceoryx, gRPC, and HTTP
 
 Run the sample:
 ```bash
@@ -195,21 +213,34 @@ cargo run -- validate --config examples/sample/network.toml
 cargo run -- build --emit nix --config examples/sample/network.toml --output ./out
 ```
 
+Run the mixed example (all transports):
+```bash
+cargo run -- validate --config examples/mixed/network.toml
+cargo run -- build --emit nix --config examples/mixed/network.toml --output ./out
+```
+
 ## Project Status
 
-**Phase 1 (Current MVP):**
+**Phase 1 (Complete):**
 - Unix socket transport
 - Basic validation
 - C code generation
 - Nix derivation output
 
-**Phase 2 (Planned):**
-- gRPC transport
-- HTTP transport
-- iceoryx shared-memory transport
+**Phase 2–3 (Complete):**
+- gRPC transport with C core API codegen
+- HTTP transport with libcurl codegen
+- iceoryx shared-memory transport (POSIX)
+- TypeScript client generation (HTTP contracts)
+- Transport-aware Nix derivations with conditional buildInputs
+- Composable Nix src parameter for custom builds
+- End-to-end integration tests
+
+**Future:**
 - `diff` command for breaking change detection
 - Language bindings (Python, Go)
 - Visual editor for topology design
+- CMake code generation
 
 ## Development
 
