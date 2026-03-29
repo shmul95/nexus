@@ -1,0 +1,7 @@
+struct Summary {
+    count     : u32
+    avg_value : f64
+    min_value : f64
+    max_value : f64
+    timestamp : u64
+}

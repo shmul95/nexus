@@ -1,0 +1,49 @@
+# Mixed transport example — exercises all supported transports
+
+[[nodes]]
+name = "sensor"
+sends = [
+  { contract = "readings", to = "aggregator" },
+]
+
+[[nodes]]
+name = "aggregator"
+receives = [
+  { contract = "readings", from = "sensor" },
+]
+sends = [
+  { contract = "summary", to = "api_server" },
+]
+
+[[nodes]]
+name = "api_server"
+receives = [
+  { contract = "summary", from = "aggregator" },
+]
+sends = [
+  { contract = "dashboard", to = "frontend" },
+]
+
+[[nodes]]
+name = "frontend"
+receives = [
+  { contract = "dashboard", from = "api_server" },
+]
+
+# iceoryx: sensor → aggregator
+[[contracts]]
+name = "readings"
+transport = "iceoryx"
+schema = "schemas/sensor_reading.nxs"
+
+# grpc: aggregator → api_server
+[[contracts]]
+name = "summary"
+transport = "grpc"
+schema = "schemas/summary.nxs"
+
+# http: api_server → frontend
+[[contracts]]
+name = "dashboard"
+transport = "http"
+schema = "schemas/summary.nxs"

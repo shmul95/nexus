@@ -1,0 +1,5 @@
+struct SensorReading {
+    sensor_id  : u32
+    value      : f64
+    timestamp  : u64
+}

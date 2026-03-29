@@ -182,3 +182,72 @@ fn e2e_minimal_load_validate_generate() {
         "header missing recv function"
     );
 }
+
+// ── mixed transport example ──────────────────────────────────────────────────
+
+#[test]
+fn e2e_mixed_load_validate_generate() {
+    let config = workspace_root().join("examples/mixed/network.toml");
+
+    // 1. Load
+    let network = nexus_core::load(&config).expect("load should succeed for mixed/network.toml");
+
+    assert_eq!(network.nodes.len(), 4, "mixed: expected 4 nodes");
+    assert_eq!(network.contracts.len(), 3, "mixed: expected 3 contracts");
+    assert_eq!(network.edges.len(), 6, "mixed: expected 6 edges");
+
+    // 2. Validate
+    nexus_validate::validate(&network).expect("mixed network should pass all validation rules");
+
+    // 3. Generate
+    let output = nexus_codegen::generate(&network).expect("codegen should succeed for mixed network");
+
+    let paths: HashSet<&str> = output.files.iter().map(|f| f.path.as_str()).collect();
+
+    // Per-contract headers
+    assert!(paths.contains("include/nexus_readings.h"), "missing nexus_readings.h");
+    assert!(paths.contains("include/nexus_summary.h"), "missing nexus_summary.h");
+    assert!(paths.contains("include/nexus_dashboard.h"), "missing nexus_dashboard.h");
+
+    // Per-contract C implementations
+    assert!(paths.contains("src/nexus_readings.c"), "missing nexus_readings.c (iceoryx)");
+    assert!(paths.contains("src/nexus_summary.c"), "missing nexus_summary.c (grpc)");
+    assert!(paths.contains("src/nexus_dashboard.c"), "missing nexus_dashboard.c (http)");
+
+    // Per-node umbrella headers
+    assert!(paths.contains("include/nexus_sensor.h"), "missing nexus_sensor.h");
+    assert!(paths.contains("include/nexus_aggregator.h"), "missing nexus_aggregator.h");
+    assert!(paths.contains("include/nexus_api_server.h"), "missing nexus_api_server.h");
+    assert!(paths.contains("include/nexus_frontend.h"), "missing nexus_frontend.h");
+
+    // Nix derivation files
+    assert!(paths.contains("nix/sensor.nix"), "missing nix/sensor.nix");
+    assert!(paths.contains("nix/aggregator.nix"), "missing nix/aggregator.nix");
+    assert!(paths.contains("nix/api_server.nix"), "missing nix/api_server.nix");
+    assert!(paths.contains("nix/frontend.nix"), "missing nix/frontend.nix");
+    assert!(paths.contains("nexus.nix"), "missing nexus.nix");
+
+    // TypeScript file (only for HTTP transport)
+    assert!(paths.contains("ts/nexus_dashboard.ts"), "missing ts/nexus_dashboard.ts (HTTP contract)");
+    // iceoryx and grpc contracts should NOT have TypeScript
+    assert!(!paths.contains("ts/nexus_readings.ts"), "unexpected TS for iceoryx contract");
+    assert!(!paths.contains("ts/nexus_summary.ts"), "unexpected TS for grpc contract");
+
+    // Verify transport-specific content in C implementations
+    let readings_c = output.files.iter().find(|f| f.path == "src/nexus_readings.c").unwrap();
+    assert!(readings_c.content.contains("shm_open"), "iceoryx impl should use shm_open");
+
+    let summary_c = output.files.iter().find(|f| f.path == "src/nexus_summary.c").unwrap();
+    assert!(summary_c.content.contains("grpc_channel"), "grpc impl should use grpc_channel");
+
+    let dashboard_c = output.files.iter().find(|f| f.path == "src/nexus_dashboard.c").unwrap();
+    assert!(dashboard_c.content.contains("curl_easy_init"), "http impl should use curl");
+
+    // Verify nix derivation has correct transport deps
+    let api_server_nix = output.files.iter().find(|f| f.path == "nix/api_server.nix").unwrap();
+    assert!(api_server_nix.content.contains("grpc"), "api_server.nix should have grpc dep");
+    assert!(api_server_nix.content.contains("curl"), "api_server.nix should have curl dep");
+
+    let sensor_nix = output.files.iter().find(|f| f.path == "nix/sensor.nix").unwrap();
+    assert!(sensor_nix.content.contains("-lrt"), "sensor.nix should have -lrt for iceoryx");
+}
