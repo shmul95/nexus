@@ -46,7 +46,9 @@ pub fn generate_typescript(
     let tmpl = env.get_template("typescript")?;
 
     let contract_name_upper = contract.name.to_uppercase();
-    let struct_name = to_pascal_case(&contract.name);
+    let struct_name = schema.structs.last()
+        .map(|s| to_pascal_case(&s.name))
+        .unwrap_or_else(|| to_pascal_case(&contract.name));
 
     let interfaces: Vec<Value> = schema.structs.iter().map(struct_to_value).collect();
 

@@ -61,15 +61,15 @@ int nexus_recv_{{ contract_name }}(Nexus{{ struct_name }}* out) {
 
 /// Generate a gRPC server-side C implementation file for the given contract.
 /// The output delegates to the shared runtime from `nexus_grpc_runtime.c`.
-/// The `schema` parameter is accepted for API symmetry but is not used
-/// directly — all needed names are derived from the contract.
-pub fn generate_impl(contract: &Contract, _schema: &Schema) -> Result<GeneratedFile, CodegenError> {
+pub fn generate_impl(contract: &Contract, schema: &Schema) -> Result<GeneratedFile, CodegenError> {
     let mut env = Environment::new();
     env.add_template("server_impl", SERVER_IMPL_TMPL)?;
     let tmpl = env.get_template("server_impl")?;
 
     let contract_name_upper = contract.name.to_uppercase();
-    let struct_name = to_pascal_case(&contract.name);
+    let struct_name = schema.structs.last()
+        .map(|s| to_pascal_case(&s.name))
+        .unwrap_or_else(|| to_pascal_case(&contract.name));
 
     let rendered = tmpl.render(context! {
         contract_name => contract.name,

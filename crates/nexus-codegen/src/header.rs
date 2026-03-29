@@ -61,7 +61,13 @@ pub fn generate_header(
     // schema.structs is assumed to be in dependency order (nested first).
     let structs: Vec<Value> = schema.structs.iter().map(struct_to_value).collect();
 
-    let top_struct_name = to_pascal_case(&contract.name);
+    // Use the schema's top-level struct name (last in dependency order),
+    // not the contract name — they may differ when schemas are shared.
+    let top_struct_name = schema
+        .structs
+        .last()
+        .map(|s| to_pascal_case(&s.name))
+        .unwrap_or_else(|| to_pascal_case(&contract.name));
 
     let rendered = tmpl.render(context! {
         contract_name => contract.name,
