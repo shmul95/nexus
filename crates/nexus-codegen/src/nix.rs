@@ -16,7 +16,7 @@ pkgs.stdenv.mkDerivation {
   nativeBuildInputs = [ pkgs.pkg-config ];
 {% endif %}
 {% if has_grpc or has_http or has_http_server %}
-  buildInputs = [
+  propagatedBuildInputs = [
     {% if has_grpc %}pkgs.grpc{% endif %}
     {% if has_http %}pkgs.curl{% endif %}
     {% if has_http_server %}pkgs.libmicrohttpd{% endif %}
