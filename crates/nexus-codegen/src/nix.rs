@@ -49,6 +49,7 @@ pkgs.stdenv.mkDerivation {
 
     cat > $out/lib/pkgconfig/nexus-{{ node_name }}.pc << PKGEOF
 Name: nexus-{{ node_name }}
+Description: nexus-gen IPC library for {{ node_name }}
 Version: 0.1.0
 Libs: -L$out/lib -lnexus-{{ node_name }}
 Cflags: -I$out/include
