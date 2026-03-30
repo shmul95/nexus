@@ -21,11 +21,14 @@ extern "C" {
 #define NEXUS_ERR_INIT     -3
 
 {% for s in structs %}
+#ifndef NEXUS_{{ s.upper_name }}_DEFINED
+#define NEXUS_{{ s.upper_name }}_DEFINED
 typedef struct {
 {% for field_decl in s.fields %}
     {{ field_decl }};
 {% endfor %}
 } Nexus{{ s.pascal_name }};
+#endif
 {% endfor %}
 
 int  nexus_{{ contract_name }}_init(void);
@@ -162,6 +165,7 @@ pub fn field_decl(field_name: &str, typ: &FieldType) -> String {
 /// Build a minijinja Value for a StructDef: {pascal_name, fields: [decl_string]}.
 fn struct_to_value(s: &StructDef) -> Value {
     let pascal_name = to_pascal_case(&s.name);
+    let upper_name = pascal_name.to_uppercase();
     let fields: Vec<String> = s
         .fields
         .iter()
@@ -170,6 +174,7 @@ fn struct_to_value(s: &StructDef) -> Value {
 
     context! {
         pascal_name => pascal_name,
+        upper_name => upper_name,
         fields => fields,
     }
 }
