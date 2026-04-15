@@ -22,22 +22,29 @@
       packages = forAllSystems (system:
         let
           pkgs = mkPkgs system;
-        in {
-          default = pkgs.rustPlatform.buildRustPackage {
+          nexus-gen = pkgs.rustPlatform.buildRustPackage {
             pname = "nexus-gen";
             version = "0.1.0";
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
-
-            # Build only the CLI crate (the workspace root is a test-only package)
             cargoBuildFlags = [ "-p" "nexus-cli" ];
-
             meta = {
               description = "nexus-gen IPC topology code generator";
               mainProgram = "nexus-gen";
             };
           };
+        in {
+          default = nexus-gen;
+          inherit nexus-gen;
         });
+
+      apps = forAllSystems (system: {
+        default = {
+          type = "app";
+          program = "${self.packages.${system}.nexus-gen}/bin/nexus-gen";
+          # Usage: nix run -- studio [--config network.toml] [--port 3000]
+        };
+      });
 
       devShells = forAllSystems (system:
         let

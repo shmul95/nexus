@@ -12,5 +12,7 @@ path = "src/main.rs"
 nexus-core = { workspace = true }
 nexus-validate = { workspace = true }
 nexus-codegen = { workspace = true }
+nexus-studio = { workspace = true }
+tokio = { workspace = true }
 clap = { workspace = true }
 thiserror = { workspace = true }

@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>nexus-studio</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
+    header { padding: 12px 20px; background: #1a1d2e; border-bottom: 1px solid #2d3748; display: flex; align-items: center; gap: 16px; }
+    header h1 { font-size: 16px; font-weight: 600; color: #7c3aed; letter-spacing: 0.05em; }
+    header span { font-size: 12px; color: #718096; }
+    #save-btn { margin-left: auto; padding: 6px 16px; background: #7c3aed; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    #save-btn:hover { background: #6d28d9; }
+    #save-btn.saved { background: #059669; }
+    main { display: flex; flex: 1; overflow: hidden; }
+    #canvas { flex: 1; position: relative; overflow: hidden; background: #0f1117; background-image: radial-gradient(circle, #2d3748 1px, transparent 1px); background-size: 24px 24px; }
+    #sidebar { width: 320px; background: #1a1d2e; border-left: 1px solid #2d3748; padding: 20px; overflow-y: auto; display: none; flex-direction: column; gap: 12px; }
+    #sidebar.open { display: flex; }
+    #sidebar h2 { font-size: 13px; font-weight: 600; color: #a0aec0; text-transform: uppercase; letter-spacing: 0.08em; }
+    #sidebar label { font-size: 12px; color: #718096; display: block; margin-bottom: 4px; }
+    #sidebar input, #sidebar select { width: 100%; padding: 6px 10px; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; font-size: 13px; }
+    #sidebar input:focus, #sidebar select:focus { outline: none; border-color: #7c3aed; }
+    .field-group { display: flex; flex-direction: column; gap: 4px; }
+    .close-btn { align-self: flex-end; background: none; border: none; color: #718096; cursor: pointer; font-size: 18px; line-height: 1; }
+    .close-btn:hover { color: #e2e8f0; }
+    /* Node boxes */
+    .node { position: absolute; background: #1a1d2e; border: 2px solid #4a5568; border-radius: 10px; padding: 12px 16px; min-width: 120px; cursor: grab; user-select: none; text-align: center; }
+    .node:active { cursor: grabbing; }
+    .node.selected { border-color: #7c3aed; }
+    .node-name { font-size: 14px; font-weight: 600; color: #e2e8f0; }
+    /* SVG edges */
+    #edges-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+    .edge-path { fill: none; stroke-width: 2; }
+    .edge-label { font-size: 10px; fill: #a0aec0; cursor: pointer; pointer-events: all; }
+    /* Transport colours */
+    .transport-iceoryx { stroke: #ed8936; }
+    .transport-grpc    { stroke: #4299e1; }
+    .transport-http    { stroke: #48bb78; }
+    .transport-unix_socket { stroke: #a0aec0; }
+    .transport-iceoryx-text { fill: #ed8936; }
+    .transport-grpc-text    { fill: #4299e1; }
+    .transport-http-text    { fill: #48bb78; }
+    .transport-unix_socket-text { fill: #a0aec0; }
+    .legend { position: absolute; bottom: 16px; left: 16px; background: #1a1d2e; border: 1px solid #2d3748; border-radius: 8px; padding: 10px 14px; display: flex; gap: 16px; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #a0aec0; }
+    .legend-dot { width: 10px; height: 3px; border-radius: 2px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>nexus-studio</h1>
+  <span id="config-path">network.toml</span>
+  <button id="save-btn" onclick="saveNetwork()">Save</button>
+</header>
+<main>
+  <div id="canvas">
+    <svg id="edges-svg">
+      <defs>
+        <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#4a5568" />
+        </marker>
+        <marker id="arrowhead-iceoryx" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#ed8936" />
+        </marker>
+        <marker id="arrowhead-grpc" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#4299e1" />
+        </marker>
+        <marker id="arrowhead-http" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#48bb78" />
+        </marker>
+        <marker id="arrowhead-unix_socket" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#a0aec0" />
+        </marker>
+      </defs>
+    </svg>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#ed8936"></div>iceoryx</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4299e1"></div>gRPC</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#48bb78"></div>HTTP</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a0aec0"></div>unix_socket</div>
+    </div>
+  </div>
+  <div id="sidebar">
+    <button class="close-btn" onclick="closeSidebar()">x</button>
+    <div id="sidebar-content"></div>
+  </div>
+</main>
+
+<script>
+let network = { nodes: [], contracts: [] };
+let positions = {};
+let dragging = null;
+let dragOffset = { x: 0, y: 0 };
+
+const canvas = document.getElementById('canvas');
+const svg = document.getElementById('edges-svg');
+const sidebar = document.getElementById('sidebar');
+const sidebarContent = document.getElementById('sidebar-content');
+
+// ── Layout ────────────────────────────────────────────────────────────────────
+
+function autoLayout(nodes) {
+  const cols = Math.ceil(Math.sqrt(nodes.length)) || 1;
+  nodes.forEach((n, i) => {
+    if (!positions[n.name]) {
+      positions[n.name] = {
+        x: 80 + (i % cols) * 220,
+        y: 80 + Math.floor(i / cols) * 160,
+      };
+    }
+  });
+}
+
+// ── Transport helpers ─────────────────────────────────────────────────────────
+
+function transportForContract(name) {
+  const c = network.contracts.find(c => c.name === name);
+  return c ? c.transport : 'unknown';
+}
+
+function transportColorClass(transport) {
+  const known = ['iceoryx', 'grpc', 'http', 'unix_socket'];
+  return known.includes(transport) ? 'transport-' + transport : 'transport-iceoryx';
+}
+
+function markerIdForTransport(transport) {
+  const known = ['iceoryx', 'grpc', 'http', 'unix_socket'];
+  return known.includes(transport) ? 'arrowhead-' + transport : 'arrowhead';
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function render() {
+  canvas.querySelectorAll('.node').forEach(el => el.remove());
+  svg.querySelectorAll('.edge-group').forEach(el => el.remove());
+
+  // Nodes
+  network.nodes.forEach(node => {
+    const pos = positions[node.name] || { x: 100, y: 100 };
+    const el = document.createElement('div');
+    el.className = 'node';
+    el.id = 'node-' + node.name;
+    el.style.left = pos.x + 'px';
+    el.style.top = pos.y + 'px';
+    el.innerHTML = '<div class="node-name">' + escapeHtml(node.name) + '</div>';
+    el.addEventListener('mousedown', e => startDrag(node.name, e));
+    canvas.appendChild(el);
+  });
+
+  // Edges — deduplicate by (sender, peer, contract)
+  const drawn = new Set();
+  network.nodes.forEach(node => {
+    (node.sends || []).forEach(send => {
+      const key = node.name + '>' + send.peer + ':' + send.contract;
+      if (drawn.has(key)) return;
+      drawn.add(key);
+      drawEdge(node.name, send.peer, send.contract);
+    });
+  });
+}
+
+function nodeCenter(name) {
+  const el = document.getElementById('node-' + name);
+  if (!el) return null;
+  return {
+    x: parseInt(el.style.left) + el.offsetWidth / 2,
+    y: parseInt(el.style.top) + el.offsetHeight / 2,
+  };
+}
+
+function drawEdge(from, to, contractName) {
+  const src = nodeCenter(from);
+  const dst = nodeCenter(to);
+  if (!src || !dst) return;
+
+  const transport = transportForContract(contractName);
+  const colorClass = transportColorClass(transport);
+  const markerId = markerIdForTransport(transport);
+
+  // Curve offset to avoid perfect overlap on bidirectional edges
+  const dx = dst.x - src.x;
+  const dy = dst.y - src.y;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  const mx = (src.x + dst.x) / 2 - (dy / len) * 20;
+  const my = (src.y + dst.y) / 2 + (dx / len) * 20;
+
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.className.baseVal = 'edge-group';
+
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.className.baseVal = 'edge-path ' + colorClass;
+  path.setAttribute('d', 'M ' + src.x + ' ' + src.y + ' Q ' + mx + ' ' + my + ' ' + dst.x + ' ' + dst.y);
+  path.setAttribute('marker-end', 'url(#' + markerId + ')');
+  g.appendChild(path);
+
+  // Wide invisible hit area
+  const hit = path.cloneNode();
+  hit.setAttribute('stroke-width', '16');
+  hit.setAttribute('stroke', 'transparent');
+  hit.style.pointerEvents = 'stroke';
+  hit.style.cursor = 'pointer';
+  hit.addEventListener('click', () => openContractPanel(contractName));
+  g.insertBefore(hit, path);
+
+  // Label
+  const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  label.className.baseVal = 'edge-label ' + colorClass.replace('transport-', 'transport-') + '-text';
+  label.setAttribute('x', mx);
+  label.setAttribute('y', my - 6);
+  label.setAttribute('text-anchor', 'middle');
+  label.textContent = contractName;
+  label.style.cursor = 'pointer';
+  label.addEventListener('click', () => openContractPanel(contractName));
+  g.appendChild(label);
+
+  svg.appendChild(g);
+}
+
+// ── Drag ──────────────────────────────────────────────────────────────────────
+
+function startDrag(name, e) {
+  dragging = name;
+  const pos = positions[name] || { x: 0, y: 0 };
+  dragOffset = { x: e.clientX - pos.x, y: e.clientY - pos.y };
+  e.preventDefault();
+}
+
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  positions[dragging] = { x: e.clientX - dragOffset.x, y: e.clientY - dragOffset.y };
+  const el = document.getElementById('node-' + dragging);
+  if (el) {
+    el.style.left = positions[dragging].x + 'px';
+    el.style.top = positions[dragging].y + 'px';
+  }
+  // Redraw only edges
+  svg.querySelectorAll('.edge-group').forEach(el => el.remove());
+  const drawn = new Set();
+  network.nodes.forEach(node => {
+    (node.sends || []).forEach(send => {
+      const key = node.name + '>' + send.peer + ':' + send.contract;
+      if (drawn.has(key)) return;
+      drawn.add(key);
+      drawEdge(node.name, send.peer, send.contract);
+    });
+  });
+});
+
+document.addEventListener('mouseup', () => { dragging = null; });
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+
+function closeSidebar() {
+  sidebar.classList.remove('open');
+}
+
+function openContractPanel(contractName) {
+  const c = network.contracts.find(c => c.name === contractName);
+  if (!c) return;
+  sidebarContent.innerHTML =
+    '<h2>Contract</h2>' +
+    '<div class="field-group"><label>Name</label><input id="c-name" value="' + escapeHtml(c.name) + '" /></div>' +
+    '<div class="field-group"><label>Transport</label>' +
+    '<select id="c-transport">' +
+    '<option value="iceoryx"' + (c.transport === 'iceoryx' ? ' selected' : '') + '>iceoryx</option>' +
+    '<option value="grpc"' + (c.transport === 'grpc' ? ' selected' : '') + '>gRPC</option>' +
+    '<option value="http"' + (c.transport === 'http' ? ' selected' : '') + '>HTTP</option>' +
+    '<option value="unix_socket"' + (c.transport === 'unix_socket' ? ' selected' : '') + '>unix_socket</option>' +
+    '<option value="shared_memory"' + (c.transport === 'shared_memory' ? ' selected' : '') + '>shared_memory</option>' +
+    '<option value="message_queue"' + (c.transport === 'message_queue' ? ' selected' : '') + '>message_queue</option>' +
+    '</select></div>' +
+    '<div class="field-group"><label>Schema path</label><input id="c-schema" value="' + escapeHtml(c.schema || '') + '" /></div>' +
+    '<button onclick="applyContractEdit(' + JSON.stringify(contractName) + ')" style="padding:6px 12px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;margin-top:8px;">Apply</button>';
+  sidebar.classList.add('open');
+}
+
+function applyContractEdit(oldName) {
+  const c = network.contracts.find(c => c.name === oldName);
+  if (!c) return;
+  const newName = document.getElementById('c-name').value;
+  const newTransport = document.getElementById('c-transport').value;
+  const newSchema = document.getElementById('c-schema').value;
+
+  // Update edge references if name changed
+  if (newName !== oldName) {
+    network.nodes.forEach(n => {
+      (n.sends || []).forEach(e => { if (e.contract === oldName) e.contract = newName; });
+      (n.receives || []).forEach(e => { if (e.contract === oldName) e.contract = newName; });
+    });
+  }
+
+  c.name = newName;
+  c.transport = newTransport;
+  c.schema = newSchema;
+
+  render();
+  markUnsaved();
+  closeSidebar();
+}
+
+// ── Save / load ───────────────────────────────────────────────────────────────
+
+function markUnsaved() {
+  const btn = document.getElementById('save-btn');
+  btn.textContent = 'Save *';
+  btn.classList.remove('saved');
+}
+
+async function loadNetwork() {
+  const resp = await fetch('/api/network');
+  if (!resp.ok) {
+    document.getElementById('config-path').textContent = 'Failed to load network.toml';
+    return;
+  }
+  network = await resp.json();
+  autoLayout(network.nodes);
+  render();
+}
+
+async function saveNetwork() {
+  const resp = await fetch('/api/network', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(network),
+  });
+  const btn = document.getElementById('save-btn');
+  if (resp.ok) {
+    btn.textContent = 'Saved';
+    btn.classList.add('saved');
+    setTimeout(() => { btn.textContent = 'Save'; btn.classList.remove('saved'); }, 2000);
+  } else {
+    btn.textContent = 'Error!';
+    setTimeout(() => { btn.textContent = 'Save'; }, 2000);
+  }
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+loadNetwork();
+</script>
+</body>
+</html>

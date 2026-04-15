@@ -40,6 +40,15 @@ enum Commands {
         /// New network.toml
         new: PathBuf,
     },
+    /// Launch the visual network editor in the browser
+    Studio {
+        /// Path to network.toml
+        #[arg(short, long, default_value = "network.toml")]
+        config: PathBuf,
+        /// Port to listen on
+        #[arg(short, long, default_value_t = 3000)]
+        port: u16,
+    },
 }
 
 #[derive(Clone, clap::ValueEnum)]
@@ -126,6 +135,16 @@ fn main() {
 
         Commands::Diff { old: _, new: _ } => {
             eprintln!("diff command not yet implemented");
+        }
+
+        Commands::Studio { config, port } => {
+            tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(nexus_studio::run(config, port))
+                .unwrap_or_else(|e| {
+                    eprintln!("error: {}", e);
+                    process::exit(1);
+                });
         }
     }
 }
