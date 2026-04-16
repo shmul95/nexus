@@ -175,6 +175,24 @@ async fn put_network(
     }
 }
 
+#[derive(Serialize, Deserialize)]
+struct ConfigDto {
+    path: String,
+}
+
+async fn get_config(State(state): State<AppState>) -> Json<ConfigDto> {
+    let path = state.config_path.lock().unwrap().clone();
+    Json(ConfigDto { path: path.to_string_lossy().to_string() })
+}
+
+async fn put_config(
+    State(state): State<AppState>,
+    Json(body): Json<ConfigDto>,
+) -> StatusCode {
+    *state.config_path.lock().unwrap() = PathBuf::from(&body.path);
+    StatusCode::OK
+}
+
 async fn serve_spa() -> Response {
     (
         [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
@@ -192,6 +210,7 @@ pub async fn run(config: PathBuf, port: u16) -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/api/network", get(get_network).put(put_network))
+        .route("/api/config", get(get_config).put(put_config))
         .route("/", get(serve_spa))
         .route("/*path", get(serve_spa))
         .with_state(state)

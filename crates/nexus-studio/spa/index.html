@@ -8,9 +8,12 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
     header { padding: 12px 20px; background: #1a1d2e; border-bottom: 1px solid #2d3748; display: flex; align-items: center; gap: 16px; }
-    header h1 { font-size: 16px; font-weight: 600; color: #7c3aed; letter-spacing: 0.05em; }
-    header span { font-size: 12px; color: #718096; }
-    #save-btn { margin-left: auto; padding: 6px 16px; background: #7c3aed; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    header h1 { font-size: 16px; font-weight: 600; color: #7c3aed; letter-spacing: 0.05em; flex-shrink: 0; }
+    #config-input { flex: 1; max-width: 400px; padding: 5px 10px; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #a0aec0; font-size: 12px; font-family: monospace; }
+    #config-input:focus { outline: none; border-color: #7c3aed; color: #e2e8f0; }
+    #load-btn { padding: 5px 12px; background: #2d3748; color: #a0aec0; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; }
+    #load-btn:hover { background: #4a5568; color: #e2e8f0; }
+    #save-btn { margin-left: auto; padding: 6px 16px; background: #7c3aed; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; flex-shrink: 0; }
     #save-btn:hover { background: #6d28d9; }
     #save-btn.saved { background: #059669; }
     main { display: flex; flex: 1; overflow: hidden; }
@@ -50,7 +53,8 @@
 <body>
 <header>
   <h1>nexus-studio</h1>
-  <span id="config-path">network.toml</span>
+  <input id="config-input" type="text" placeholder="network.toml" title="Config file path — press Enter or click Load to reload" />
+  <button id="load-btn" onclick="reloadConfig()">Load</button>
   <button id="save-btn" onclick="saveNetwork()">Save</button>
 </header>
 <main>
@@ -203,11 +207,12 @@ function drawEdge(from, to, contractName) {
   hit.addEventListener('click', () => openContractPanel(contractName));
   g.insertBefore(hit, path);
 
-  // Label
+  // Label — above edge for L→R, below for R→L
+  const labelOffset = (dst.x >= src.x) ? -8 : 14;
   const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-  label.className.baseVal = 'edge-label ' + colorClass.replace('transport-', 'transport-') + '-text';
+  label.className.baseVal = 'edge-label ' + colorClass + '-text';
   label.setAttribute('x', mx);
-  label.setAttribute('y', my - 6);
+  label.setAttribute('y', my + labelOffset);
   label.setAttribute('text-anchor', 'middle');
   label.textContent = contractName;
   label.style.cursor = 'pointer';
@@ -308,15 +313,50 @@ function markUnsaved() {
 }
 
 async function loadNetwork() {
+  // Sync the input with the server's current config path
+  const cfgResp = await fetch('/api/config');
+  if (cfgResp.ok) {
+    const cfg = await cfgResp.json();
+    document.getElementById('config-input').value = cfg.path;
+  }
+
   const resp = await fetch('/api/network');
   if (!resp.ok) {
-    document.getElementById('config-path').textContent = 'Failed to load network.toml';
+    document.getElementById('config-input').placeholder = 'Failed to load';
     return;
   }
   network = await resp.json();
   autoLayout(network.nodes);
   render();
 }
+
+async function reloadConfig() {
+  const input = document.getElementById('config-input');
+  const newPath = input.value.trim();
+  if (!newPath) return;
+
+  // Tell the server to switch config path
+  await fetch('/api/config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: newPath }),
+  });
+
+  // Reset layout so new nodes get auto-positioned
+  positions = {};
+  const resp = await fetch('/api/network');
+  if (!resp.ok) { input.style.borderColor = '#e53e3e'; return; }
+  input.style.borderColor = '';
+  network = await resp.json();
+  autoLayout(network.nodes);
+  render();
+  markUnsaved();
+}
+
+// Allow pressing Enter in the config input to reload
+document.getElementById('config-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') reloadConfig();
+});
 
 async function saveNetwork() {
   const resp = await fetch('/api/network', {
