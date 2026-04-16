@@ -177,15 +177,7 @@ function render() {
     canvas.appendChild(el);
   });
 
-  const drawn = new Set();
-  network.nodes.forEach(node => {
-    (node.sends||[]).forEach(send => {
-      const key = node.name+'>'+send.peer+':'+send.contract;
-      if (drawn.has(key)) return;
-      drawn.add(key);
-      drawEdge(node.name, send.peer, send.contract);
-    });
-  });
+  drawEdges();
 }
 
 function nodeCenter(name) {
@@ -194,36 +186,79 @@ function nodeCenter(name) {
   return { x: parseInt(el.style.left)+el.offsetWidth/2, y: parseInt(el.style.top)+el.offsetHeight/2 };
 }
 
-function drawEdge(from, to, contractName) {
+// Group all sends by unordered node pair, spread them with perpendicular offsets,
+// draw straight lines; label on right-hand side of direction (LTR→above, RTL→below).
+function drawEdges() {
+  svg.querySelectorAll('.edge-group').forEach(el => el.remove());
+  const edges = [], drawn = new Set();
+  network.nodes.forEach(node => {
+    (node.sends||[]).forEach(send => {
+      const key = node.name+'>'+send.peer+':'+send.contract;
+      if (drawn.has(key)) return;
+      drawn.add(key);
+      if (nodeCenter(node.name) && nodeCenter(send.peer))
+        edges.push({ from: node.name, to: send.peer, contract: send.contract });
+    });
+  });
+  // Group by unordered pair so A→B and B→A edges are spread together
+  const groups = {};
+  edges.forEach(e => {
+    const key = [e.from, e.to].sort().join('\x00');
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(e);
+  });
+  const SPACING = 16;
+  Object.values(groups).forEach(group => {
+    const N = group.length;
+    group.forEach((e, i) => {
+      _drawEdge(e.from, e.to, e.contract, (i - (N-1)/2) * SPACING);
+    });
+  });
+}
+
+function _drawEdge(from, to, contractName, perpOff) {
   const src = nodeCenter(from), dst = nodeCenter(to);
   if (!src||!dst) return;
-  const t  = transportFor(contractName);
-  const cc = colorClass(t), mid = markerId(t);
-  const dx = dst.x-src.x, dy = dst.y-src.y, len = Math.sqrt(dx*dx+dy*dy)||1;
-  const mx = (src.x+dst.x)/2 - (dy/len)*20;
-  const my = (src.y+dst.y)/2 + (dx/len)*20;
+  const dx = dst.x-src.x, dy = dst.y-src.y;
+  const len = Math.sqrt(dx*dx+dy*dy)||1;
+  // Left-hand perpendicular (CCW from direction), used to offset parallel edges
+  const px = -dy/len, py = dx/len;
+  const x1 = src.x+px*perpOff, y1 = src.y+py*perpOff;
+  const x2 = dst.x+px*perpOff, y2 = dst.y+py*perpOff;
 
-  const g    = document.createElementNS('http://www.w3.org/2000/svg','g');
+  const t = transportFor(contractName);
+  const cc = colorClass(t), mid = markerId(t);
+
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
   g.className.baseVal = 'edge-group';
 
-  const d    = `M ${src.x} ${src.y} Q ${mx} ${my} ${dst.x} ${dst.y}`;
+  // Wide transparent hit area
+  const hit = document.createElementNS('http://www.w3.org/2000/svg','line');
+  hit.setAttribute('x1',x1); hit.setAttribute('y1',y1);
+  hit.setAttribute('x2',x2); hit.setAttribute('y2',y2);
+  hit.setAttribute('stroke','transparent'); hit.setAttribute('stroke-width','18');
+  hit.style.pointerEvents='stroke'; hit.style.cursor='pointer';
+  hit.addEventListener('click',()=>openContractPanel(contractName));
+  g.appendChild(hit);
+
+  // Visible line
   const path = document.createElementNS('http://www.w3.org/2000/svg','path');
   path.className.baseVal = 'edge-path '+cc;
-  path.setAttribute('d', d);
+  path.setAttribute('d',`M ${x1} ${y1} L ${x2} ${y2}`);
   path.setAttribute('marker-end','url(#'+mid+')');
   g.appendChild(path);
 
-  const hit = path.cloneNode();
-  hit.setAttribute('stroke-width','16');
-  hit.setAttribute('stroke','transparent');
-  hit.style.pointerEvents='stroke'; hit.style.cursor='pointer';
-  hit.addEventListener('click',()=>openContractPanel(contractName));
-  g.insertBefore(hit,path);
-
-  const labelOffset = (dst.x >= src.x) ? -8 : 14;
+  // Right-hand normal: (dy/len, -dx/len)
+  // LTR (dx>0, dy≈0) → (≈0, ≈-1) → label above ✓
+  // RTL (dx<0, dy≈0) → (≈0, ≈+1) → label below ✓
+  // Vertical-down (dy>0) → (≈+1, ≈0) → label right; vertical-up → label left
+  // (smooth continuous rotation between all angles)
+  const rnx = dy/len, rny = -dx/len;
+  const mx = (x1+x2)/2, my = (y1+y2)/2;
   const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
   lbl.className.baseVal = 'edge-label '+cc+'-text';
-  lbl.setAttribute('x', mx); lbl.setAttribute('y', my+labelOffset);
+  lbl.setAttribute('x', mx+rnx*14);
+  lbl.setAttribute('y', my+rny*14);
   lbl.setAttribute('text-anchor','middle');
   lbl.textContent = contractName;
   lbl.style.cursor='pointer';
@@ -242,26 +277,13 @@ function startDrag(name, e) {
   e.preventDefault();
 }
 
-function redrawEdges() {
-  svg.querySelectorAll('.edge-group').forEach(el=>el.remove());
-  const drawn = new Set();
-  network.nodes.forEach(node => {
-    (node.sends||[]).forEach(send => {
-      const key = node.name+'>'+send.peer+':'+send.contract;
-      if (drawn.has(key)) return;
-      drawn.add(key);
-      drawEdge(node.name, send.peer, send.contract);
-    });
-  });
-}
-
 document.addEventListener('mousemove', e => {
   if (!dragging) return;
   dragMoved = true;
   positions[dragging] = { x:e.clientX-dragOffset.x, y:e.clientY-dragOffset.y };
   const el = document.getElementById('node-'+dragging);
   if (el) { el.style.left=positions[dragging].x+'px'; el.style.top=positions[dragging].y+'px'; }
-  redrawEdges();
+  drawEdges();
 });
 
 document.addEventListener('mouseup', () => {
