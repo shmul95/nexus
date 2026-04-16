@@ -70,7 +70,7 @@
     /* ── SVG edges ── */
     #edges-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
     .edge-path { fill: none; stroke-width: 2; }
-    .edge-label { font-size: 10px; cursor: pointer; pointer-events: all; }
+    .edge-label { font-size: 11px; cursor: pointer; pointer-events: all; paint-order: stroke fill; stroke: #0f1117; stroke-width: 3px; stroke-linejoin: round; }
     .transport-iceoryx      { stroke: #ed8936; } .transport-iceoryx-text { fill: #ed8936; }
     .transport-grpc         { stroke: #4299e1; } .transport-grpc-text    { fill: #4299e1; }
     .transport-http         { stroke: #48bb78; } .transport-http-text    { fill: #48bb78; }
@@ -207,16 +207,19 @@ function drawEdges() {
     if (!groups[key]) groups[key] = [];
     groups[key].push(e);
   });
-  const SPACING = 16;
+  const SPACING = 22;
   Object.values(groups).forEach(group => {
     const N = group.length;
     group.forEach((e, i) => {
-      _drawEdge(e.from, e.to, e.contract, (i - (N-1)/2) * SPACING);
+      const perpOff = (i - (N-1)/2) * SPACING;
+      // Stagger label along the edge so parallel labels don't pile up at the midpoint
+      const labelT = N > 1 ? 0.35 + (i / (N-1)) * 0.30 : 0.5;
+      _drawEdge(e.from, e.to, e.contract, perpOff, labelT);
     });
   });
 }
 
-function _drawEdge(from, to, contractName, perpOff) {
+function _drawEdge(from, to, contractName, perpOff, labelT=0.5) {
   const src = nodeCenter(from), dst = nodeCenter(to);
   if (!src||!dst) return;
   const dx = dst.x-src.x, dy = dst.y-src.y;
@@ -254,11 +257,13 @@ function _drawEdge(from, to, contractName, perpOff) {
   // Vertical-down (dy>0) → (≈+1, ≈0) → label right; vertical-up → label left
   // (smooth continuous rotation between all angles)
   const rnx = dy/len, rny = -dx/len;
-  const mx = (x1+x2)/2, my = (y1+y2)/2;
+  // Label position: parameterised along the edge (labelT) + 16px on right-hand side
+  const lx = x1 + (x2-x1)*labelT + rnx*16;
+  const ly = y1 + (y2-y1)*labelT + rny*16;
   const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
   lbl.className.baseVal = 'edge-label '+cc+'-text';
-  lbl.setAttribute('x', mx+rnx*14);
-  lbl.setAttribute('y', my+rny*14);
+  lbl.setAttribute('x', lx);
+  lbl.setAttribute('y', ly);
   lbl.setAttribute('text-anchor','middle');
   lbl.textContent = contractName;
   lbl.style.cursor='pointer';
