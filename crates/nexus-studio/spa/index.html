@@ -135,6 +135,10 @@ const sbBody  = document.getElementById('sidebar-body');
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+// Safe to embed inside a double-quoted HTML onclick attribute as a JS string literal
+function jsq(s) {
+  return "'" + String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'") + "'";
+}
 function nodeNames() { return network.nodes.map(n => n.name); }
 function contractNames() { return network.contracts.map(c => c.name); }
 function transportFor(name) { const c = network.contracts.find(c=>c.name===name); return c?c.transport:'unknown'; }
@@ -298,13 +302,13 @@ function _renderNodePanel(name) {
   const sendRows = (node.sends||[]).map(s =>
     `<div class="edge-item">
       <span>${esc(s.contract)} → ${esc(s.peer)}</span>
-      <button class="del" onclick="removeSend(${JSON.stringify(name)},${JSON.stringify(s.contract)},${JSON.stringify(s.peer)})">&#x2715;</button>
+      <button class="del" onclick="removeSend(${jsq(name)},${jsq(s.contract)},${jsq(s.peer)})">&#x2715;</button>
     </div>`).join('');
 
   const recvRows = (node.receives||[]).map(r =>
     `<div class="edge-item">
       <span>${esc(r.peer)} → ${esc(r.contract)}</span>
-      <button class="del" onclick="removeReceive(${JSON.stringify(name)},${JSON.stringify(r.contract)},${JSON.stringify(r.peer)})">&#x2715;</button>
+      <button class="del" onclick="removeReceive(${jsq(name)},${jsq(r.contract)},${jsq(r.peer)})">&#x2715;</button>
     </div>`).join('');
 
   const peerOpts     = peers.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
@@ -315,7 +319,7 @@ function _renderNodePanel(name) {
       <label>Name</label>
       <input id="n-name" value="${esc(name)}" />
     </div>
-    <button class="btn-primary" onclick="applyNodeRename(${JSON.stringify(name)})">Rename</button>
+    <button class="btn-primary" onclick="applyNodeRename(${jsq(name)})">Rename</button>
 
     <hr class="divider"/>
 
@@ -324,7 +328,7 @@ function _renderNodePanel(name) {
     <div class="add-edge-row">
       <select id="ns-contract">${contractOpts||'<option value="">— no contracts —</option>'}</select>
       <select id="ns-peer">${peerOpts||'<option value="">— no peers —</option>'}</select>
-      <button onclick="addSend(${JSON.stringify(name)})">＋</button>
+      <button onclick="addSend(${jsq(name)})">＋</button>
     </div>
 
     <hr class="divider"/>
@@ -334,11 +338,11 @@ function _renderNodePanel(name) {
     <div class="add-edge-row">
       <select id="nr-contract">${contractOpts||'<option value="">— no contracts —</option>'}</select>
       <select id="nr-peer">${peerOpts||'<option value="">— no peers —</option>'}</select>
-      <button onclick="addReceive(${JSON.stringify(name)})">＋</button>
+      <button onclick="addReceive(${jsq(name)})">＋</button>
     </div>
 
     <hr class="divider"/>
-    <button class="btn-danger" onclick="deleteNode(${JSON.stringify(name)})">Delete node</button>
+    <button class="btn-danger" onclick="deleteNode(${jsq(name)})">Delete node</button>
   `);
 }
 
@@ -472,9 +476,9 @@ function openContractPanel(name) {
       <label>Schema path</label>
       <input id="c-schema" value="${esc(c.schema||'')}" />
     </div>
-    <button class="btn-primary" onclick="applyContractEdit(${JSON.stringify(name)})">Apply</button>
+    <button class="btn-primary" onclick="applyContractEdit(${jsq(name)})">Apply</button>
     <hr class="divider"/>
-    <button class="btn-danger" onclick="deleteContract(${JSON.stringify(name)})">Delete contract</button>
+    <button class="btn-danger" onclick="deleteContract(${jsq(name)})">Delete contract</button>
   `);
 }
 
