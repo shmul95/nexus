@@ -7,45 +7,77 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
-    header { padding: 12px 20px; background: #1a1d2e; border-bottom: 1px solid #2d3748; display: flex; align-items: center; gap: 16px; }
-    header h1 { font-size: 16px; font-weight: 600; color: #7c3aed; letter-spacing: 0.05em; flex-shrink: 0; }
-    #config-input { flex: 1; max-width: 400px; padding: 5px 10px; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #a0aec0; font-size: 12px; font-family: monospace; }
+
+    /* ── Header ── */
+    header { padding: 10px 20px; background: #1a1d2e; border-bottom: 1px solid #2d3748; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    header h1 { font-size: 15px; font-weight: 600; color: #7c3aed; letter-spacing: 0.05em; flex-shrink: 0; }
+    #config-input { flex: 1; min-width: 160px; max-width: 360px; padding: 5px 10px; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #a0aec0; font-size: 12px; font-family: monospace; }
     #config-input:focus { outline: none; border-color: #7c3aed; color: #e2e8f0; }
-    #load-btn { padding: 5px 12px; background: #2d3748; color: #a0aec0; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; }
+    .hbtn { padding: 5px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; }
+    #load-btn  { background: #2d3748; color: #a0aec0; }
     #load-btn:hover { background: #4a5568; color: #e2e8f0; }
-    #save-btn { margin-left: auto; padding: 6px 16px; background: #7c3aed; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; flex-shrink: 0; }
+    #add-node-btn, #add-contract-btn { background: #2d3748; color: #68d391; }
+    #add-node-btn:hover, #add-contract-btn:hover { background: #276749; color: #fff; }
+    #save-btn { margin-left: auto; padding: 6px 16px; background: #7c3aed; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; flex-shrink: 0; min-width: 80px; transition: background .15s; }
     #save-btn:hover { background: #6d28d9; }
-    #save-btn.saved { background: #059669; }
+    #save-btn.saving { background: #b7791f; }
+    #save-btn.saved  { background: #059669; }
+    #save-btn.error  { background: #c53030; }
+
+    /* ── Layout ── */
     main { display: flex; flex: 1; overflow: hidden; }
     #canvas { flex: 1; position: relative; overflow: hidden; background: #0f1117; background-image: radial-gradient(circle, #2d3748 1px, transparent 1px); background-size: 24px 24px; }
-    #sidebar { width: 320px; background: #1a1d2e; border-left: 1px solid #2d3748; padding: 20px; overflow-y: auto; display: none; flex-direction: column; gap: 12px; }
+
+    /* ── Sidebar ── */
+    #sidebar { width: 300px; background: #1a1d2e; border-left: 1px solid #2d3748; overflow-y: auto; display: none; flex-direction: column; }
     #sidebar.open { display: flex; }
-    #sidebar h2 { font-size: 13px; font-weight: 600; color: #a0aec0; text-transform: uppercase; letter-spacing: 0.08em; }
-    #sidebar label { font-size: 12px; color: #718096; display: block; margin-bottom: 4px; }
-    #sidebar input, #sidebar select { width: 100%; padding: 6px 10px; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; font-size: 13px; }
-    #sidebar input:focus, #sidebar select:focus { outline: none; border-color: #7c3aed; }
+    #sidebar-header { padding: 14px 16px 10px; display: flex; align-items: center; border-bottom: 1px solid #2d3748; gap: 8px; }
+    #sidebar-title { font-size: 11px; font-weight: 700; color: #a0aec0; text-transform: uppercase; letter-spacing: .08em; flex: 1; }
+    #sidebar-close { background: none; border: none; color: #718096; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px; }
+    #sidebar-close:hover { color: #e2e8f0; }
+    #sidebar-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+
+    /* ── Form widgets ── */
     .field-group { display: flex; flex-direction: column; gap: 4px; }
-    .close-btn { align-self: flex-end; background: none; border: none; color: #718096; cursor: pointer; font-size: 18px; line-height: 1; }
-    .close-btn:hover { color: #e2e8f0; }
-    /* Node boxes */
-    .node { position: absolute; background: #1a1d2e; border: 2px solid #4a5568; border-radius: 10px; padding: 12px 16px; min-width: 120px; cursor: grab; user-select: none; text-align: center; }
+    .field-group label { font-size: 11px; color: #718096; }
+    .field-group input, .field-group select { width: 100%; padding: 6px 10px; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; font-size: 13px; }
+    .field-group input:focus, .field-group select:focus { outline: none; border-color: #7c3aed; }
+    .btn-primary { padding: 7px 14px; background: #7c3aed; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; width: 100%; }
+    .btn-primary:hover { background: #6d28d9; }
+    .btn-danger  { padding: 7px 14px; background: transparent; color: #fc8181; border: 1px solid #c53030; border-radius: 6px; cursor: pointer; font-size: 13px; width: 100%; }
+    .btn-danger:hover { background: #c53030; color: white; }
+    .section-title { font-size: 11px; font-weight: 600; color: #718096; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+    hr.divider { border: none; border-top: 1px solid #2d3748; }
+
+    /* ── Edge list ── */
+    .edge-list { display: flex; flex-direction: column; gap: 4px; }
+    .edge-item { display: flex; align-items: center; gap: 6px; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; padding: 5px 8px; font-size: 12px; color: #a0aec0; }
+    .edge-item span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .edge-item .del { background: none; border: none; color: #718096; cursor: pointer; font-size: 14px; padding: 0; line-height: 1; flex-shrink: 0; }
+    .edge-item .del:hover { color: #fc8181; }
+    .add-edge-row { display: flex; gap: 6px; }
+    .add-edge-row select { flex: 1; padding: 5px 8px; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; font-size: 12px; }
+    .add-edge-row select:focus { outline: none; border-color: #7c3aed; }
+    .add-edge-row button { padding: 5px 10px; background: #276749; color: #68d391; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; flex-shrink: 0; }
+    .add-edge-row button:hover { background: #2f855a; color: white; }
+
+    /* ── Node boxes ── */
+    .node { position: absolute; background: #1a1d2e; border: 2px solid #4a5568; border-radius: 10px; padding: 10px 16px; min-width: 110px; cursor: grab; user-select: none; text-align: center; transition: border-color .1s; }
     .node:active { cursor: grabbing; }
-    .node.selected { border-color: #7c3aed; }
-    .node-name { font-size: 14px; font-weight: 600; color: #e2e8f0; }
-    /* SVG edges */
+    .node.selected { border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124,58,237,.2); }
+    .node-name { font-size: 13px; font-weight: 600; color: #e2e8f0; }
+
+    /* ── SVG edges ── */
     #edges-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
     .edge-path { fill: none; stroke-width: 2; }
-    .edge-label { font-size: 10px; fill: #a0aec0; cursor: pointer; pointer-events: all; }
-    /* Transport colours */
-    .transport-iceoryx { stroke: #ed8936; }
-    .transport-grpc    { stroke: #4299e1; }
-    .transport-http    { stroke: #48bb78; }
-    .transport-unix_socket { stroke: #a0aec0; }
-    .transport-iceoryx-text { fill: #ed8936; }
-    .transport-grpc-text    { fill: #4299e1; }
-    .transport-http-text    { fill: #48bb78; }
-    .transport-unix_socket-text { fill: #a0aec0; }
-    .legend { position: absolute; bottom: 16px; left: 16px; background: #1a1d2e; border: 1px solid #2d3748; border-radius: 8px; padding: 10px 14px; display: flex; gap: 16px; flex-wrap: wrap; }
+    .edge-label { font-size: 10px; cursor: pointer; pointer-events: all; }
+    .transport-iceoryx      { stroke: #ed8936; } .transport-iceoryx-text { fill: #ed8936; }
+    .transport-grpc         { stroke: #4299e1; } .transport-grpc-text    { fill: #4299e1; }
+    .transport-http         { stroke: #48bb78; } .transport-http-text    { fill: #48bb78; }
+    .transport-unix_socket  { stroke: #a0aec0; } .transport-unix_socket-text { fill: #a0aec0; }
+
+    /* ── Legend ── */
+    .legend { position: absolute; bottom: 16px; left: 16px; background: #1a1d2e; border: 1px solid #2d3748; border-radius: 8px; padding: 8px 14px; display: flex; gap: 16px; flex-wrap: wrap; pointer-events: none; }
     .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #a0aec0; }
     .legend-dot { width: 10px; height: 3px; border-radius: 2px; }
   </style>
@@ -53,29 +85,21 @@
 <body>
 <header>
   <h1>nexus-studio</h1>
-  <input id="config-input" type="text" placeholder="network.toml" title="Config file path — press Enter or click Load to reload" />
-  <button id="load-btn" onclick="reloadConfig()">Load</button>
+  <input id="config-input" type="text" placeholder="network.toml" class="hbtn" title="Config file path — Enter or Load to reload" style="cursor:text;padding:5px 10px;font-family:monospace;" />
+  <button id="load-btn"         class="hbtn" onclick="reloadConfig()">Load</button>
+  <button id="add-node-btn"     class="hbtn" onclick="addNode()">+ Node</button>
+  <button id="add-contract-btn" class="hbtn" onclick="addContract()">+ Contract</button>
   <button id="save-btn" onclick="saveNetwork()">Save</button>
 </header>
 <main>
   <div id="canvas">
     <svg id="edges-svg">
       <defs>
-        <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#4a5568" />
-        </marker>
-        <marker id="arrowhead-iceoryx" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#ed8936" />
-        </marker>
-        <marker id="arrowhead-grpc" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#4299e1" />
-        </marker>
-        <marker id="arrowhead-http" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#48bb78" />
-        </marker>
-        <marker id="arrowhead-unix_socket" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="#a0aec0" />
-        </marker>
+        <marker id="ah-default"     markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4a5568"/></marker>
+        <marker id="ah-iceoryx"     markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#ed8936"/></marker>
+        <marker id="ah-grpc"        markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4299e1"/></marker>
+        <marker id="ah-http"        markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#48bb78"/></marker>
+        <marker id="ah-unix_socket" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#a0aec0"/></marker>
       </defs>
     </svg>
     <div class="legend">
@@ -86,77 +110,73 @@
     </div>
   </div>
   <div id="sidebar">
-    <button class="close-btn" onclick="closeSidebar()">x</button>
-    <div id="sidebar-content"></div>
+    <div id="sidebar-header">
+      <span id="sidebar-title"></span>
+      <button id="sidebar-close" onclick="closeSidebar()">&#x2715;</button>
+    </div>
+    <div id="sidebar-body"></div>
   </div>
 </main>
 
 <script>
-let network = { nodes: [], contracts: [] };
+let network  = { nodes: [], contracts: [] };
 let positions = {};
-let dragging = null;
-let dragOffset = { x: 0, y: 0 };
+let dragging  = null, dragOffset = { x:0, y:0 }, dragMoved = false;
+let selectedNode = null;
 
-const canvas = document.getElementById('canvas');
-const svg = document.getElementById('edges-svg');
+const canvas  = document.getElementById('canvas');
+const svg     = document.getElementById('edges-svg');
 const sidebar = document.getElementById('sidebar');
-const sidebarContent = document.getElementById('sidebar-content');
+const sbTitle = document.getElementById('sidebar-title');
+const sbBody  = document.getElementById('sidebar-body');
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function nodeNames() { return network.nodes.map(n => n.name); }
+function contractNames() { return network.contracts.map(c => c.name); }
+function transportFor(name) { const c = network.contracts.find(c=>c.name===name); return c?c.transport:'unknown'; }
+function colorClass(t) { return ['iceoryx','grpc','http','unix_socket'].includes(t)?'transport-'+t:'transport-iceoryx'; }
+function markerId(t)   { return ['iceoryx','grpc','http','unix_socket'].includes(t)?'ah-'+t:'ah-default'; }
+
+function optionsHtml(values, selected) {
+  return values.map(v => `<option value="${esc(v)}"${v===selected?' selected':''}>${esc(v)}</option>`).join('');
+}
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 
 function autoLayout(nodes) {
   const cols = Math.ceil(Math.sqrt(nodes.length)) || 1;
   nodes.forEach((n, i) => {
-    if (!positions[n.name]) {
-      positions[n.name] = {
-        x: 80 + (i % cols) * 220,
-        y: 80 + Math.floor(i / cols) * 160,
-      };
-    }
+    if (!positions[n.name])
+      positions[n.name] = { x: 80+(i%cols)*220, y: 80+Math.floor(i/cols)*160 };
   });
-}
-
-// ── Transport helpers ─────────────────────────────────────────────────────────
-
-function transportForContract(name) {
-  const c = network.contracts.find(c => c.name === name);
-  return c ? c.transport : 'unknown';
-}
-
-function transportColorClass(transport) {
-  const known = ['iceoryx', 'grpc', 'http', 'unix_socket'];
-  return known.includes(transport) ? 'transport-' + transport : 'transport-iceoryx';
-}
-
-function markerIdForTransport(transport) {
-  const known = ['iceoryx', 'grpc', 'http', 'unix_socket'];
-  return known.includes(transport) ? 'arrowhead-' + transport : 'arrowhead';
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
 function render() {
-  canvas.querySelectorAll('.node').forEach(el => el.remove());
-  svg.querySelectorAll('.edge-group').forEach(el => el.remove());
+  canvas.querySelectorAll('.node').forEach(el=>el.remove());
+  svg.querySelectorAll('.edge-group').forEach(el=>el.remove());
 
-  // Nodes
   network.nodes.forEach(node => {
-    const pos = positions[node.name] || { x: 100, y: 100 };
-    const el = document.createElement('div');
-    el.className = 'node';
-    el.id = 'node-' + node.name;
-    el.style.left = pos.x + 'px';
-    el.style.top = pos.y + 'px';
-    el.innerHTML = '<div class="node-name">' + escapeHtml(node.name) + '</div>';
+    const pos = positions[node.name] || { x:100, y:100 };
+    const el  = document.createElement('div');
+    el.className = 'node' + (node.name===selectedNode?' selected':'');
+    el.id = 'node-'+node.name;
+    el.style.left = pos.x+'px';
+    el.style.top  = pos.y+'px';
+    el.innerHTML  = '<div class="node-name">'+esc(node.name)+'</div>';
     el.addEventListener('mousedown', e => startDrag(node.name, e));
     canvas.appendChild(el);
   });
 
-  // Edges — deduplicate by (sender, peer, contract)
   const drawn = new Set();
   network.nodes.forEach(node => {
-    (node.sends || []).forEach(send => {
-      const key = node.name + '>' + send.peer + ':' + send.contract;
+    (node.sends||[]).forEach(send => {
+      const key = node.name+'>'+send.peer+':'+send.contract;
       if (drawn.has(key)) return;
       drawn.add(key);
       drawEdge(node.name, send.peer, send.contract);
@@ -165,166 +185,350 @@ function render() {
 }
 
 function nodeCenter(name) {
-  const el = document.getElementById('node-' + name);
+  const el = document.getElementById('node-'+name);
   if (!el) return null;
-  return {
-    x: parseInt(el.style.left) + el.offsetWidth / 2,
-    y: parseInt(el.style.top) + el.offsetHeight / 2,
-  };
+  return { x: parseInt(el.style.left)+el.offsetWidth/2, y: parseInt(el.style.top)+el.offsetHeight/2 };
 }
 
 function drawEdge(from, to, contractName) {
-  const src = nodeCenter(from);
-  const dst = nodeCenter(to);
-  if (!src || !dst) return;
+  const src = nodeCenter(from), dst = nodeCenter(to);
+  if (!src||!dst) return;
+  const t  = transportFor(contractName);
+  const cc = colorClass(t), mid = markerId(t);
+  const dx = dst.x-src.x, dy = dst.y-src.y, len = Math.sqrt(dx*dx+dy*dy)||1;
+  const mx = (src.x+dst.x)/2 - (dy/len)*20;
+  const my = (src.y+dst.y)/2 + (dx/len)*20;
 
-  const transport = transportForContract(contractName);
-  const colorClass = transportColorClass(transport);
-  const markerId = markerIdForTransport(transport);
-
-  // Curve offset to avoid perfect overlap on bidirectional edges
-  const dx = dst.x - src.x;
-  const dy = dst.y - src.y;
-  const len = Math.sqrt(dx * dx + dy * dy) || 1;
-  const mx = (src.x + dst.x) / 2 - (dy / len) * 20;
-  const my = (src.y + dst.y) / 2 + (dx / len) * 20;
-
-  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  const g    = document.createElementNS('http://www.w3.org/2000/svg','g');
   g.className.baseVal = 'edge-group';
 
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.className.baseVal = 'edge-path ' + colorClass;
-  path.setAttribute('d', 'M ' + src.x + ' ' + src.y + ' Q ' + mx + ' ' + my + ' ' + dst.x + ' ' + dst.y);
-  path.setAttribute('marker-end', 'url(#' + markerId + ')');
+  const d    = `M ${src.x} ${src.y} Q ${mx} ${my} ${dst.x} ${dst.y}`;
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.className.baseVal = 'edge-path '+cc;
+  path.setAttribute('d', d);
+  path.setAttribute('marker-end','url(#'+mid+')');
   g.appendChild(path);
 
-  // Wide invisible hit area
   const hit = path.cloneNode();
-  hit.setAttribute('stroke-width', '16');
-  hit.setAttribute('stroke', 'transparent');
-  hit.style.pointerEvents = 'stroke';
-  hit.style.cursor = 'pointer';
-  hit.addEventListener('click', () => openContractPanel(contractName));
-  g.insertBefore(hit, path);
+  hit.setAttribute('stroke-width','16');
+  hit.setAttribute('stroke','transparent');
+  hit.style.pointerEvents='stroke'; hit.style.cursor='pointer';
+  hit.addEventListener('click',()=>openContractPanel(contractName));
+  g.insertBefore(hit,path);
 
-  // Label — above edge for L→R, below for R→L
   const labelOffset = (dst.x >= src.x) ? -8 : 14;
-  const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-  label.className.baseVal = 'edge-label ' + colorClass + '-text';
-  label.setAttribute('x', mx);
-  label.setAttribute('y', my + labelOffset);
-  label.setAttribute('text-anchor', 'middle');
-  label.textContent = contractName;
-  label.style.cursor = 'pointer';
-  label.addEventListener('click', () => openContractPanel(contractName));
-  g.appendChild(label);
+  const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+  lbl.className.baseVal = 'edge-label '+cc+'-text';
+  lbl.setAttribute('x', mx); lbl.setAttribute('y', my+labelOffset);
+  lbl.setAttribute('text-anchor','middle');
+  lbl.textContent = contractName;
+  lbl.style.cursor='pointer';
+  lbl.addEventListener('click',()=>openContractPanel(contractName));
+  g.appendChild(lbl);
 
   svg.appendChild(g);
 }
 
-// ── Drag ──────────────────────────────────────────────────────────────────────
+// ── Drag (click = no movement, drag = moved) ──────────────────────────────────
 
 function startDrag(name, e) {
-  dragging = name;
-  const pos = positions[name] || { x: 0, y: 0 };
-  dragOffset = { x: e.clientX - pos.x, y: e.clientY - pos.y };
+  dragging = name; dragMoved = false;
+  const pos = positions[name]||{x:0,y:0};
+  dragOffset = { x:e.clientX-pos.x, y:e.clientY-pos.y };
   e.preventDefault();
 }
 
-document.addEventListener('mousemove', e => {
-  if (!dragging) return;
-  positions[dragging] = { x: e.clientX - dragOffset.x, y: e.clientY - dragOffset.y };
-  const el = document.getElementById('node-' + dragging);
-  if (el) {
-    el.style.left = positions[dragging].x + 'px';
-    el.style.top = positions[dragging].y + 'px';
-  }
-  // Redraw only edges
-  svg.querySelectorAll('.edge-group').forEach(el => el.remove());
+function redrawEdges() {
+  svg.querySelectorAll('.edge-group').forEach(el=>el.remove());
   const drawn = new Set();
   network.nodes.forEach(node => {
-    (node.sends || []).forEach(send => {
-      const key = node.name + '>' + send.peer + ':' + send.contract;
+    (node.sends||[]).forEach(send => {
+      const key = node.name+'>'+send.peer+':'+send.contract;
       if (drawn.has(key)) return;
       drawn.add(key);
       drawEdge(node.name, send.peer, send.contract);
     });
   });
+}
+
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  dragMoved = true;
+  positions[dragging] = { x:e.clientX-dragOffset.x, y:e.clientY-dragOffset.y };
+  const el = document.getElementById('node-'+dragging);
+  if (el) { el.style.left=positions[dragging].x+'px'; el.style.top=positions[dragging].y+'px'; }
+  redrawEdges();
 });
 
-document.addEventListener('mouseup', () => { dragging = null; });
+document.addEventListener('mouseup', () => {
+  if (dragging && !dragMoved) openNodePanel(dragging);
+  dragging = null;
+});
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
+// ── Sidebar helpers ───────────────────────────────────────────────────────────
 
 function closeSidebar() {
   sidebar.classList.remove('open');
+  selectedNode = null;
+  canvas.querySelectorAll('.node.selected').forEach(el=>el.classList.remove('selected'));
 }
 
-function openContractPanel(contractName) {
-  const c = network.contracts.find(c => c.name === contractName);
-  if (!c) return;
-  sidebarContent.innerHTML =
-    '<h2>Contract</h2>' +
-    '<div class="field-group"><label>Name</label><input id="c-name" value="' + escapeHtml(c.name) + '" /></div>' +
-    '<div class="field-group"><label>Transport</label>' +
-    '<select id="c-transport">' +
-    '<option value="iceoryx"' + (c.transport === 'iceoryx' ? ' selected' : '') + '>iceoryx</option>' +
-    '<option value="grpc"' + (c.transport === 'grpc' ? ' selected' : '') + '>gRPC</option>' +
-    '<option value="http"' + (c.transport === 'http' ? ' selected' : '') + '>HTTP</option>' +
-    '<option value="unix_socket"' + (c.transport === 'unix_socket' ? ' selected' : '') + '>unix_socket</option>' +
-    '<option value="shared_memory"' + (c.transport === 'shared_memory' ? ' selected' : '') + '>shared_memory</option>' +
-    '<option value="message_queue"' + (c.transport === 'message_queue' ? ' selected' : '') + '>message_queue</option>' +
-    '</select></div>' +
-    '<div class="field-group"><label>Schema path</label><input id="c-schema" value="' + escapeHtml(c.schema || '') + '" /></div>' +
-    '<button onclick="applyContractEdit(' + JSON.stringify(contractName) + ')" style="padding:6px 12px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;margin-top:8px;">Apply</button>';
+function openSidebar(title, html) {
+  sbTitle.textContent = title;
+  sbBody.innerHTML = html;
   sidebar.classList.add('open');
 }
 
-function applyContractEdit(oldName) {
-  const c = network.contracts.find(c => c.name === oldName);
-  if (!c) return;
-  const newName = document.getElementById('c-name').value;
-  const newTransport = document.getElementById('c-transport').value;
-  const newSchema = document.getElementById('c-schema').value;
+// ── Node panel ────────────────────────────────────────────────────────────────
 
-  // Update edge references if name changed
-  if (newName !== oldName) {
+function openNodePanel(name) {
+  selectedNode = name;
+  canvas.querySelectorAll('.node').forEach(el=>el.classList.remove('selected'));
+  const el = document.getElementById('node-'+name);
+  if (el) el.classList.add('selected');
+  _renderNodePanel(name);
+}
+
+function _renderNodePanel(name) {
+  const node = network.nodes.find(n=>n.name===name);
+  if (!node) return;
+  const peers     = nodeNames().filter(n=>n!==name);
+  const contracts = contractNames();
+
+  const sendRows = (node.sends||[]).map(s =>
+    `<div class="edge-item">
+      <span>${esc(s.contract)} → ${esc(s.peer)}</span>
+      <button class="del" onclick="removeSend(${JSON.stringify(name)},${JSON.stringify(s.contract)},${JSON.stringify(s.peer)})">&#x2715;</button>
+    </div>`).join('');
+
+  const recvRows = (node.receives||[]).map(r =>
+    `<div class="edge-item">
+      <span>${esc(r.peer)} → ${esc(r.contract)}</span>
+      <button class="del" onclick="removeReceive(${JSON.stringify(name)},${JSON.stringify(r.contract)},${JSON.stringify(r.peer)})">&#x2715;</button>
+    </div>`).join('');
+
+  const peerOpts     = peers.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
+  const contractOpts = contracts.map(c=>`<option value="${esc(c.name||c)}">${esc(c.name||c)}</option>`).join('');
+
+  openSidebar('Node', `
+    <div class="field-group">
+      <label>Name</label>
+      <input id="n-name" value="${esc(name)}" />
+    </div>
+    <button class="btn-primary" onclick="applyNodeRename(${JSON.stringify(name)})">Rename</button>
+
+    <hr class="divider"/>
+
+    <div class="section-title">Sends</div>
+    <div class="edge-list">${sendRows||'<span style="font-size:12px;color:#718096">none</span>'}</div>
+    <div class="add-edge-row">
+      <select id="ns-contract">${contractOpts||'<option value="">— no contracts —</option>'}</select>
+      <select id="ns-peer">${peerOpts||'<option value="">— no peers —</option>'}</select>
+      <button onclick="addSend(${JSON.stringify(name)})">＋</button>
+    </div>
+
+    <hr class="divider"/>
+
+    <div class="section-title">Receives</div>
+    <div class="edge-list">${recvRows||'<span style="font-size:12px;color:#718096">none</span>'}</div>
+    <div class="add-edge-row">
+      <select id="nr-contract">${contractOpts||'<option value="">— no contracts —</option>'}</select>
+      <select id="nr-peer">${peerOpts||'<option value="">— no peers —</option>'}</select>
+      <button onclick="addReceive(${JSON.stringify(name)})">＋</button>
+    </div>
+
+    <hr class="divider"/>
+    <button class="btn-danger" onclick="deleteNode(${JSON.stringify(name)})">Delete node</button>
+  `);
+}
+
+function applyNodeRename(oldName) {
+  const newName = document.getElementById('n-name').value.trim();
+  if (!newName || newName===oldName) return;
+  if (network.nodes.find(n=>n.name===newName)) { alert('Name already used'); return; }
+  // Update all edge references
+  network.nodes.forEach(n => {
+    (n.sends||[]).forEach(e=>{ if(e.peer===oldName) e.peer=newName; });
+    (n.receives||[]).forEach(e=>{ if(e.peer===oldName) e.peer=newName; });
+  });
+  // Rename node itself
+  const node = network.nodes.find(n=>n.name===oldName);
+  node.name = newName;
+  positions[newName] = positions[oldName];
+  delete positions[oldName];
+  selectedNode = newName;
+  renderAndSave();
+  _renderNodePanel(newName);
+}
+
+function addSend(nodeName) {
+  const contract = document.getElementById('ns-contract').value;
+  const peer     = document.getElementById('ns-peer').value;
+  if (!contract||!peer) return;
+  const node = network.nodes.find(n=>n.name===nodeName);
+  if (!node.sends) node.sends=[];
+  if (node.sends.find(s=>s.contract===contract&&s.peer===peer)) return;
+  node.sends.push({ contract, peer });
+  // Mirror: add receives on the peer side
+  const peerNode = network.nodes.find(n=>n.name===peer);
+  if (peerNode) {
+    if (!peerNode.receives) peerNode.receives=[];
+    if (!peerNode.receives.find(r=>r.contract===contract&&r.peer===nodeName))
+      peerNode.receives.push({ contract, peer: nodeName });
+  }
+  renderAndSave();
+  _renderNodePanel(nodeName);
+}
+
+function removeSend(nodeName, contract, peer) {
+  const node = network.nodes.find(n=>n.name===nodeName);
+  if (!node) return;
+  node.sends = (node.sends||[]).filter(s=>!(s.contract===contract&&s.peer===peer));
+  // Mirror: remove receives on peer
+  const peerNode = network.nodes.find(n=>n.name===peer);
+  if (peerNode) peerNode.receives=(peerNode.receives||[]).filter(r=>!(r.contract===contract&&r.peer===nodeName));
+  renderAndSave();
+  _renderNodePanel(nodeName);
+}
+
+function addReceive(nodeName) {
+  const contract = document.getElementById('nr-contract').value;
+  const peer     = document.getElementById('nr-peer').value;
+  if (!contract||!peer) return;
+  const node = network.nodes.find(n=>n.name===nodeName);
+  if (!node.receives) node.receives=[];
+  if (node.receives.find(r=>r.contract===contract&&r.peer===peer)) return;
+  node.receives.push({ contract, peer });
+  // Mirror: add send on the peer side
+  const peerNode = network.nodes.find(n=>n.name===peer);
+  if (peerNode) {
+    if (!peerNode.sends) peerNode.sends=[];
+    if (!peerNode.sends.find(s=>s.contract===contract&&s.peer===nodeName))
+      peerNode.sends.push({ contract, peer: nodeName });
+  }
+  renderAndSave();
+  _renderNodePanel(nodeName);
+}
+
+function removeReceive(nodeName, contract, peer) {
+  const node = network.nodes.find(n=>n.name===nodeName);
+  if (!node) return;
+  node.receives = (node.receives||[]).filter(r=>!(r.contract===contract&&r.peer===peer));
+  // Mirror: remove send on peer
+  const peerNode = network.nodes.find(n=>n.name===peer);
+  if (peerNode) peerNode.sends=(peerNode.sends||[]).filter(s=>!(s.contract===contract&&s.peer===nodeName));
+  renderAndSave();
+  _renderNodePanel(nodeName);
+}
+
+function deleteNode(name) {
+  if (!confirm('Delete node "'+name+'"?')) return;
+  network.nodes = network.nodes.filter(n=>n.name!==name);
+  // Remove all edges referencing this node
+  network.nodes.forEach(n => {
+    n.sends    = (n.sends||[]).filter(e=>e.peer!==name);
+    n.receives = (n.receives||[]).filter(e=>e.peer!==name);
+  });
+  delete positions[name];
+  closeSidebar();
+  renderAndSave();
+}
+
+function addNode() {
+  let name = 'new-node', i = 2;
+  while (network.nodes.find(n=>n.name===name)) name = 'new-node-'+(i++);
+  // Place near centre of visible canvas
+  const cx = canvas.clientWidth/2, cy = canvas.clientHeight/2;
+  positions[name] = { x: cx-60+Math.random()*40, y: cy-30+Math.random()*40 };
+  network.nodes.push({ name, sends:[], receives:[] });
+  renderAndSave();
+  openNodePanel(name);
+}
+
+// ── Contract panel ────────────────────────────────────────────────────────────
+
+function openContractPanel(name) {
+  selectedNode = null;
+  canvas.querySelectorAll('.node.selected').forEach(el=>el.classList.remove('selected'));
+  const c = network.contracts.find(c=>c.name===name);
+  if (!c) return;
+  openSidebar('Contract', `
+    <div class="field-group">
+      <label>Name</label>
+      <input id="c-name" value="${esc(c.name)}" />
+    </div>
+    <div class="field-group">
+      <label>Transport</label>
+      <select id="c-transport">
+        <option value="iceoryx"${c.transport==='iceoryx'?' selected':''}>iceoryx</option>
+        <option value="grpc"${c.transport==='grpc'?' selected':''}>gRPC</option>
+        <option value="http"${c.transport==='http'?' selected':''}>HTTP</option>
+        <option value="unix_socket"${c.transport==='unix_socket'?' selected':''}>unix_socket</option>
+        <option value="shared_memory"${c.transport==='shared_memory'?' selected':''}>shared_memory</option>
+        <option value="message_queue"${c.transport==='message_queue'?' selected':''}>message_queue</option>
+      </select>
+    </div>
+    <div class="field-group">
+      <label>Schema path</label>
+      <input id="c-schema" value="${esc(c.schema||'')}" />
+    </div>
+    <button class="btn-primary" onclick="applyContractEdit(${JSON.stringify(name)})">Apply</button>
+    <hr class="divider"/>
+    <button class="btn-danger" onclick="deleteContract(${JSON.stringify(name)})">Delete contract</button>
+  `);
+}
+
+function applyContractEdit(oldName) {
+  const c = network.contracts.find(c=>c.name===oldName);
+  if (!c) return;
+  const newName    = document.getElementById('c-name').value.trim();
+  const newTransport = document.getElementById('c-transport').value;
+  const newSchema  = document.getElementById('c-schema').value.trim();
+  if (!newName) return;
+  if (newName!==oldName) {
     network.nodes.forEach(n => {
-      (n.sends || []).forEach(e => { if (e.contract === oldName) e.contract = newName; });
-      (n.receives || []).forEach(e => { if (e.contract === oldName) e.contract = newName; });
+      (n.sends||[]).forEach(e=>{ if(e.contract===oldName) e.contract=newName; });
+      (n.receives||[]).forEach(e=>{ if(e.contract===oldName) e.contract=newName; });
     });
   }
+  c.name=newName; c.transport=newTransport; c.schema=newSchema;
+  renderAndSave();
+  openContractPanel(newName);
+}
 
-  c.name = newName;
-  c.transport = newTransport;
-  c.schema = newSchema;
-
-  render();
-  markUnsaved();
+function deleteContract(name) {
+  if (!confirm('Delete contract "'+name+'"?\nAll edges using it will also be removed.')) return;
+  network.contracts = network.contracts.filter(c=>c.name!==name);
+  network.nodes.forEach(n => {
+    n.sends    = (n.sends||[]).filter(e=>e.contract!==name);
+    n.receives = (n.receives||[]).filter(e=>e.contract!==name);
+  });
   closeSidebar();
+  renderAndSave();
 }
 
-// ── Save / load ───────────────────────────────────────────────────────────────
-
-function markUnsaved() {
-  const btn = document.getElementById('save-btn');
-  btn.textContent = 'Save *';
-  btn.classList.remove('saved');
+function addContract() {
+  let name = 'new-contract', i = 2;
+  while (network.contracts.find(c=>c.name===name)) name = 'new-contract-'+(i++);
+  network.contracts.push({ name, transport:'iceoryx', schema:'' });
+  renderAndSave();
+  openContractPanel(name);
 }
+
+// ── Render + auto-save ────────────────────────────────────────────────────────
+
+function renderAndSave() {
+  render();
+  saveNetwork();
+}
+
+// ── Load / save / config ──────────────────────────────────────────────────────
 
 async function loadNetwork() {
-  // Sync the input with the server's current config path
   const cfgResp = await fetch('/api/config');
-  if (cfgResp.ok) {
-    const cfg = await cfgResp.json();
-    document.getElementById('config-input').value = cfg.path;
-  }
-
+  if (cfgResp.ok) document.getElementById('config-input').value = (await cfgResp.json()).path;
   const resp = await fetch('/api/network');
-  if (!resp.ok) {
-    document.getElementById('config-input').placeholder = 'Failed to load';
-    return;
-  }
+  if (!resp.ok) { document.getElementById('config-input').style.borderColor='#e53e3e'; return; }
   network = await resp.json();
   autoLayout(network.nodes);
   render();
@@ -334,54 +538,33 @@ async function reloadConfig() {
   const input = document.getElementById('config-input');
   const newPath = input.value.trim();
   if (!newPath) return;
-
-  // Tell the server to switch config path
-  await fetch('/api/config', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: newPath }),
-  });
-
-  // Reset layout so new nodes get auto-positioned
+  await fetch('/api/config',{ method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({path:newPath}) });
   positions = {};
+  closeSidebar();
   const resp = await fetch('/api/network');
-  if (!resp.ok) { input.style.borderColor = '#e53e3e'; return; }
-  input.style.borderColor = '';
+  if (!resp.ok) { input.style.borderColor='#e53e3e'; return; }
+  input.style.borderColor='';
   network = await resp.json();
   autoLayout(network.nodes);
   render();
-  markUnsaved();
 }
 
-// Allow pressing Enter in the config input to reload
-document.getElementById('config-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') reloadConfig();
-});
-
 async function saveNetwork() {
-  const resp = await fetch('/api/network', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(network),
-  });
   const btn = document.getElementById('save-btn');
+  btn.textContent='Saving…'; btn.className='saving';
+  const resp = await fetch('/api/network',{
+    method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(network)
+  });
   if (resp.ok) {
-    btn.textContent = 'Saved';
-    btn.classList.add('saved');
-    setTimeout(() => { btn.textContent = 'Save'; btn.classList.remove('saved'); }, 2000);
+    btn.textContent='Saved'; btn.className='saved';
+    setTimeout(()=>{ btn.textContent='Save'; btn.className=''; }, 1500);
   } else {
-    btn.textContent = 'Error!';
-    setTimeout(() => { btn.textContent = 'Save'; }, 2000);
+    btn.textContent='Error!'; btn.className='error';
+    setTimeout(()=>{ btn.textContent='Save'; btn.className=''; }, 2500);
   }
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+document.getElementById('config-input').addEventListener('keydown', e => { if(e.key==='Enter') reloadConfig(); });
 
 loadNetwork();
 </script>
