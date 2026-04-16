@@ -220,14 +220,35 @@ function drawEdges() {
 }
 
 function _drawEdge(from, to, contractName, perpOff, labelT=0.5) {
-  const src = nodeCenter(from), dst = nodeCenter(to);
-  if (!src||!dst) return;
-  const dx = dst.x-src.x, dy = dst.y-src.y;
+  const srcEl = document.getElementById('node-'+from);
+  const dstEl = document.getElementById('node-'+to);
+  if (!srcEl||!dstEl) return;
+
+  const srcCx = parseInt(srcEl.style.left)+srcEl.offsetWidth/2;
+  const srcCy = parseInt(srcEl.style.top) +srcEl.offsetHeight/2;
+  const dstCx = parseInt(dstEl.style.left)+dstEl.offsetWidth/2;
+  const dstCy = parseInt(dstEl.style.top) +dstEl.offsetHeight/2;
+
+  const dx = dstCx-srcCx, dy = dstCy-srcCy;
   const len = Math.sqrt(dx*dx+dy*dy)||1;
-  // Left-hand perpendicular (CCW from direction), used to offset parallel edges
-  const px = -dy/len, py = dx/len;
-  const x1 = src.x+px*perpOff, y1 = src.y+py*perpOff;
-  const x2 = dst.x+px*perpOff, y2 = dst.y+py*perpOff;
+  const ndx = dx/len, ndy = dy/len;
+  // Left-hand perpendicular (CCW), used to spread parallel edges
+  const px = -ndy, py = ndx;
+
+  // Ray from box centre in direction (vx,vy) → point on box boundary (+gap for breathing room)
+  function boxExit(cx, cy, hw, hh, vx, vy) {
+    let t = Infinity;
+    if (Math.abs(vx) > 1e-9) t = Math.min(t, hw/Math.abs(vx));
+    if (Math.abs(vy) > 1e-9) t = Math.min(t, hh/Math.abs(vy));
+    return { x: cx+vx*t, y: cy+vy*t };
+  }
+
+  const sExit = boxExit(srcCx, srcCy, srcEl.offsetWidth/2+2, srcEl.offsetHeight/2+2,  ndx,  ndy);
+  const dExit = boxExit(dstCx, dstCy, dstEl.offsetWidth/2+2, dstEl.offsetHeight/2+2, -ndx, -ndy);
+
+  // Apply perpendicular offset to the border points (not the centres)
+  const x1 = sExit.x+px*perpOff, y1 = sExit.y+py*perpOff;
+  const x2 = dExit.x+px*perpOff, y2 = dExit.y+py*perpOff;
 
   const t = transportFor(contractName);
   const cc = colorClass(t), mid = markerId(t);
@@ -251,12 +272,9 @@ function _drawEdge(from, to, contractName, perpOff, labelT=0.5) {
   path.setAttribute('marker-end','url(#'+mid+')');
   g.appendChild(path);
 
-  // Right-hand normal: (dy/len, -dx/len)
-  // LTR (dx>0, dy≈0) → (≈0, ≈-1) → label above ✓
-  // RTL (dx<0, dy≈0) → (≈0, ≈+1) → label below ✓
-  // Vertical-down (dy>0) → (≈+1, ≈0) → label right; vertical-up → label left
-  // (smooth continuous rotation between all angles)
-  const rnx = dy/len, rny = -dx/len;
+  // Right-hand normal of direction: (ndy, -ndx)
+  // LTR → label above; RTL → label below; vertical → label left/right
+  const rnx = ndy, rny = -ndx;
   // Label position: parameterised along the edge (labelT) + 16px on right-hand side
   const lx = x1 + (x2-x1)*labelT + rnx*16;
   const ly = y1 + (y2-y1)*labelT + rny*16;
