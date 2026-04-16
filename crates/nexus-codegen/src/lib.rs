@@ -105,7 +105,14 @@ pub fn generate(network: &Network) -> Result<GeneratedOutput, CodegenError> {
             .map(|&idx| &network.contracts[idx])
             .collect();
 
-        files.push(header::generate_umbrella(node, &node_contracts)?);
+        // Node is a gRPC server if it SENDS any gRPC contract
+        let node_has_grpc_server = network
+            .edges
+            .iter()
+            .any(|e| e.from_node.0 == node_idx
+                && network.contracts[e.contract.0].transport == Transport::Grpc);
+
+        files.push(header::generate_umbrella(node, &node_contracts, node_has_grpc_server)?);
     }
 
     // Nix derivation files

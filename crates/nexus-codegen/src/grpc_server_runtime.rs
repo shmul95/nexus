@@ -27,6 +27,7 @@ static grpc_server* _nexus_grpc_server = NULL;
 static grpc_completion_queue* _nexus_grpc_cq = NULL;
 static pthread_t _nexus_grpc_thread;
 static int _nexus_grpc_running = 0;
+static int _nexus_grpc_serving = 0;
 static int _nexus_grpc_refcount = 0;
 static pthread_mutex_t _nexus_grpc_init_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -145,12 +146,13 @@ static void* _nexus_grpc_server_loop(void* arg) {
     return NULL;
 }
 
+/* Phase 1: create server and add port — called once per init, before any register. */
 int _nexus_grpc_start(const char* addr) {
     pthread_mutex_lock(&_nexus_grpc_init_mutex);
     _nexus_grpc_refcount++;
     if (_nexus_grpc_server) {
         pthread_mutex_unlock(&_nexus_grpc_init_mutex);
-        return 0; /* already started */
+        return 0; /* already created */
     }
 
     grpc_init();
@@ -172,9 +174,32 @@ int _nexus_grpc_start(const char* addr) {
         return -1;
     }
 
+    /* NOTE: grpc_server_start() is deferred to _nexus_grpc_start_serving()
+     * so that all methods can be registered via grpc_server_register_method()
+     * before the server begins accepting connections. */
+
+    pthread_mutex_unlock(&_nexus_grpc_init_mutex);
+    return 0;
+}
+
+/* Phase 2: start accepting connections and begin the server loop.
+ * Must be called after all nexus_*_init() calls. */
+int _nexus_grpc_start_serving(void) {
+    pthread_mutex_lock(&_nexus_grpc_init_mutex);
+    if (!_nexus_grpc_server || _nexus_grpc_serving) {
+        pthread_mutex_unlock(&_nexus_grpc_init_mutex);
+        return 0;
+    }
+
     grpc_server_start(_nexus_grpc_server);
     _nexus_grpc_running = 1;
+    _nexus_grpc_serving = 1;
     pthread_create(&_nexus_grpc_thread, NULL, _nexus_grpc_server_loop, NULL);
+
+    /* Now that the server is started, arm all registered methods. */
+    for (int i = 0; i < _nexus_grpc_method_count; i++) {
+        _nexus_grpc_reregister(i);
+    }
 
     pthread_mutex_unlock(&_nexus_grpc_init_mutex);
     return 0;
@@ -186,6 +211,7 @@ int _nexus_grpc_register(const char* method_path, const void* cache_ptr,
     if (_nexus_grpc_method_count >= NEXUS_GRPC_MAX_METHODS) return -1;
 
     int idx = _nexus_grpc_method_count++;
+    /* grpc_server_register_method MUST be called before grpc_server_start. */
     _nexus_grpc_methods[idx].registered_method =
         grpc_server_register_method(_nexus_grpc_server, method_path, NULL,
                                      GRPC_SRM_PAYLOAD_NONE, 0);
@@ -193,10 +219,15 @@ int _nexus_grpc_register(const char* method_path, const void* cache_ptr,
     _nexus_grpc_methods[idx].cache_size = cache_size;
     _nexus_grpc_methods[idx].cache_mutex = cache_mutex;
 
-    /* Start accepting the first call for this method. */
-    _nexus_grpc_reregister(idx);
+    /* grpc_server_request_registered_call (inside _nexus_grpc_reregister) must
+     * be called AFTER grpc_server_start.  Deferral to _nexus_grpc_start_serving(). */
 
     return idx;
+}
+
+/* Public wrapper: call once after all nexus_*_init() to begin serving. */
+int nexus_grpc_server_start(void) {
+    return _nexus_grpc_start_serving();
 }
 
 void _nexus_grpc_stop(void) {
@@ -225,6 +256,7 @@ void _nexus_grpc_stop(void) {
     _nexus_grpc_server = NULL;
     _nexus_grpc_cq = NULL;
     _nexus_grpc_method_count = 0;
+    _nexus_grpc_serving = 0;
 
     grpc_shutdown();
     pthread_mutex_unlock(&_nexus_grpc_init_mutex);
@@ -260,6 +292,7 @@ mod tests {
         let file = generate_runtime().unwrap();
         assert_eq!(file.path, "src/nexus_grpc_runtime.c");
         assert!(file.content.contains("_nexus_grpc_start"));
+        assert!(file.content.contains("_nexus_grpc_start_serving"));
         assert!(file.content.contains("_nexus_grpc_stop"));
         assert!(file.content.contains("_nexus_grpc_register"));
         assert!(file.content.contains("grpc_server_create"));
